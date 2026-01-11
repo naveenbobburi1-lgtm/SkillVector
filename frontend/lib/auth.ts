@@ -1,3 +1,5 @@
+import { UserProfileData } from "./types";
+
 export const API_BASE_URL = "http://localhost:8000";
 
 export const setToken = (token: string) => {
@@ -65,6 +67,26 @@ export async function getUserProfile() {
 
     if (!response.ok) {
         throw new Error("Failed to fetch profile");
+    }
+
+    return response.json();
+}
+
+export async function saveUserDetails(data: UserProfileData) {
+    const token = getToken();
+    if (!token) throw new Error("No token found");
+
+    const response = await fetch(`${API_BASE_URL}/userdetails`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        throw new Error("Failed to save user details");
     }
 
     return response.json();

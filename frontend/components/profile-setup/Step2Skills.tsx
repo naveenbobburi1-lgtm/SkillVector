@@ -1,0 +1,171 @@
+"use client";
+
+import { useState } from "react";
+import { UserProfileData } from "@/lib/types";
+
+interface StepProps {
+    data: UserProfileData;
+    updateData: (data: Partial<UserProfileData>) => void;
+}
+
+export default function Step2Skills({ data, updateData }: StepProps) {
+    const [skillInput, setSkillInput] = useState("");
+    const [certInput, setCertInput] = useState({ title: "", issuer: "" });
+
+    const addSkill = () => {
+        if (skillInput.trim()) {
+            const currentSkills = data.skills || [];
+            if (!currentSkills.includes(skillInput.trim())) {
+                updateData({ skills: [...currentSkills, skillInput.trim()] });
+            }
+            setSkillInput("");
+        }
+    };
+
+    const removeSkill = (skillToRemove: string) => {
+        updateData({
+            skills: (data.skills || []).filter((s) => s !== skillToRemove),
+        });
+    };
+
+    const addCert = () => {
+        if (certInput.title.trim() && certInput.issuer.trim()) {
+            const currentCerts = data.certifications || [];
+            updateData({ certifications: [...currentCerts, { ...certInput }] });
+            setCertInput({ title: "", issuer: "" });
+        }
+    };
+
+    const removeCert = (index: number) => {
+        updateData({
+            certifications: (data.certifications || []).filter((_, i) => i !== index),
+        });
+    };
+
+    return (
+        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700 ease-out">
+            <div className="text-center space-y-3">
+                <h1 className="text-4xl font-bold text-text-main tracking-tight">Competence Matrix</h1>
+                <p className="text-lg text-text-muted max-w-xl mx-auto">Map your existing capabilities. Our AI uses this vector to calculate your optimal learning trajectory.</p>
+            </div>
+
+            <div className="space-y-8">
+                {/* Core Skills - Glassmorphism Card */}
+                <div className="bg-surface-1/50 backdrop-blur-md border border-border rounded-2xl p-6 md:p-8 space-y-6 shadow-xl shadow-black/5">
+                    <div className="flex items-center gap-4 border-b border-border pb-4">
+                        <div className="p-3 bg-primary/10 rounded-xl">
+                            <span className="material-symbols-outlined text-primary text-2xl">psychology</span>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-text-main">Core Capabilities</h2>
+                            <p className="text-xs text-text-muted">Technical, Soft, or Domain Skills</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="flex gap-2 relative group">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-text-muted transition-colors group-focus-within:text-primary">add_reaction</span>
+                            <input
+                                type="text"
+                                value={skillInput}
+                                onChange={(e) => setSkillInput(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && addSkill()}
+                                className="flex-1 bg-surface-2 border border-border rounded-xl pl-12 pr-4 py-4 text-text-main focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder:text-text-muted/40 shadow-inner"
+                                placeholder="Type a skill (e.g. React, Project Management)..."
+                            />
+                            <button
+                                onClick={addSkill}
+                                disabled={!skillInput.trim()}
+                                className="px-6 bg-primary hover:bg-primary-hover disabled:bg-surface-2 disabled:text-text-muted disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow-lg shadow-primary/20 hover:shadow-primary/40 active:scale-95 flex items-center gap-2"
+                            >
+                                <span className="material-symbols-outlined">add</span>
+                                <span className="hidden md:inline">Add</span>
+                            </button>
+                        </div>
+
+                        <div className="min-h-[100px] bg-background/50 rounded-xl p-4 border border-dashed border-border flex flex-wrap content-start gap-2">
+                            {data.skills?.map((skill) => (
+                                <div key={skill} className="bg-surface-1 border border-border pl-3 pr-2 py-1.5 rounded-lg flex items-center gap-2 text-sm text-text-main group hover:border-primary/50 transition-all shadow-sm">
+                                    <span className="font-medium">{skill}</span>
+                                    <button onClick={() => removeSkill(skill)} className="text-text-muted hover:text-error hover:bg-error/10 rounded p-0.5 transition-colors">
+                                        <span className="material-symbols-outlined text-base">close</span>
+                                    </button>
+                                </div>
+                            ))}
+                            {(!data.skills || data.skills.length === 0) && (
+                                <div className="w-full h-full flex flex-col items-center justify-center text-text-muted/40 py-8 gap-2">
+                                    <span className="material-symbols-outlined text-4xl">check_box_outline_blank</span>
+                                    <span className="text-sm font-medium">No skills mapped yet. Start typing above.</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Certifications - Glassmorphism Card */}
+                <div className="bg-surface-1/50 backdrop-blur-md border border-border rounded-2xl p-6 md:p-8 space-y-6 shadow-xl shadow-black/5">
+                    <div className="flex items-center gap-4 border-b border-border pb-4">
+                        <div className="p-3 bg-secondary/10 rounded-xl">
+                            <span className="material-symbols-outlined text-secondary text-2xl">verified</span>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-text-main">Credentials</h2>
+                            <p className="text-xs text-text-muted">Certifications, Licenses & Awards</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-text-dim uppercase tracking-wider ml-1">Certificate Name</label>
+                            <input
+                                type="text"
+                                value={certInput.title}
+                                onChange={(e) => setCertInput({ ...certInput, title: e.target.value })}
+                                className="w-full bg-surface-2 border border-border rounded-xl px-4 py-3 text-text-main focus:ring-2 focus:ring-secondary focus:border-transparent outline-none transition-all placeholder:text-text-muted/40"
+                                placeholder="e.g. AWS Solutions Architect"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-text-dim uppercase tracking-wider ml-1">Issuing Organization</label>
+                            <input
+                                type="text"
+                                value={certInput.issuer}
+                                onChange={(e) => setCertInput({ ...certInput, issuer: e.target.value })}
+                                className="w-full bg-surface-2 border border-border rounded-xl px-4 py-3 text-text-main focus:ring-2 focus:ring-secondary focus:border-transparent outline-none transition-all placeholder:text-text-muted/40"
+                                placeholder="e.g. Amazon Web Services"
+                            />
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={addCert}
+                        disabled={!certInput.title.trim() || !certInput.issuer.trim()}
+                        className="w-full py-3.5 bg-surface-2 hover:bg-secondary/10 hover:text-secondary hover:border-secondary border border-dashed border-border rounded-xl text-text-muted transition-all flex items-center justify-center gap-2 font-bold disabled:opacity-50 disabled:cursor-not-allowed group"
+                    >
+                        <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
+                        Append Credential
+                    </button>
+
+                    <div className="space-y-3">
+                        {data.certifications?.map((cert, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-4 bg-background border border-border rounded-xl hover:border-secondary/30 transition-all group">
+                                <div className="flex items-center gap-4">
+                                    <div className="h-10 w-10 bg-secondary/10 rounded-full flex items-center justify-center text-secondary font-bold">
+                                        {cert.issuer.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-bold text-text-main">{cert.title}</div>
+                                        <div className="text-xs text-text-muted">{cert.issuer}</div>
+                                    </div>
+                                </div>
+                                <button onClick={() => removeCert(idx)} className="text-text-muted hover:text-error p-2 hover:bg-error/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                                    <span className="material-symbols-outlined text-lg">delete</span>
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}

@@ -9,11 +9,12 @@ import { API_BASE_URL, getToken, removeToken } from "@/lib/auth";
 export default function LearningPathPage() {
   const router = useRouter();
   const [data, setData] = useState<LearningPathResponse | null>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchLearningPath() {
+    async function init() {
       const token = getToken();
       if (!token) {
         router.push("/login");
@@ -21,31 +22,37 @@ export default function LearningPathPage() {
       }
 
       try {
-        const res = await fetch(`${API_BASE_URL}/generate-path`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        // Fetch Learning Path
+        const pathRes = await fetch(`${API_BASE_URL}/generate-path`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (res.status === 401) {
+        if (pathRes.status === 401) {
           removeToken();
           router.push("/login");
           return;
         }
 
-        if (!res.ok) {
-          throw new Error("Failed to fetch learning path");
+        if (!pathRes.ok) throw new Error("Failed to fetch learning path");
+        const pathJson = await pathRes.json();
+        setData(pathJson);
+
+        // Fetch Profile for Nav
+        const profileRes = await fetch(`${API_BASE_URL}/user-profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (profileRes.ok) {
+          const profileJson = await profileRes.json();
+          setProfile(profileJson);
         }
-        const json: LearningPathResponse = await res.json();
-        setData(json);
+
       } catch (err: any) {
         setError(err.message || "An error occurred");
       } finally {
         setLoading(false);
       }
     }
-
-    fetchLearningPath();
+    init();
   }, []);
 
   if (loading) {
@@ -92,14 +99,23 @@ export default function LearningPathPage() {
         <div className="hidden md:flex items-center gap-6 text-sm font-medium text-text-muted">
           <Link href="/learning-path" className="text-text-main font-semibold">Learning Path</Link>
           <Link href="/profile" className="hover:text-primary transition-colors">Profile</Link>
-          <Link href="#" className="hover:text-primary transition-colors">Market Insights</Link>
+          <Link href="/market-insights" className="hover:text-primary transition-colors">Market Insights</Link>
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="h-8 w-8 rounded-full bg-surface-2 border border-border flex items-center justify-center text-text-muted hover:text-text-main transition-colors cursor-pointer">
-            <span className="material-symbols-outlined text-lg">notifications</span>
+          <div className="h-8 w-8 rounded-full bg-surface-2 border border-border flex items-center justify-center text-text-muted hover:text-white transition-colors cursor-pointer">
+            <span className="material-symbols-outlined text-lg text-text-muted hover:text-text-main transition-colors">notifications</span>
           </div>
-          <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-primary to-blue-500 border border-border/50 shadow-inner"></div>
+
+          <div className="flex items-center gap-3 pl-2 border-l border-border/50">
+            <div className="hidden md:block text-right">
+              <div className="text-sm font-semibold text-text-main leading-none">{profile?.username || "User"}</div>
+              <div className="text-[10px] font-medium text-text-muted uppercase tracking-wider">Member</div>
+            </div>
+            <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-primary to-blue-500 border-2 border-surface-1 shadow-lg flex items-center justify-center">
+              <span className="text-sm font-bold text-white uppercase">{(profile?.username || "U").charAt(0)}</span>
+            </div>
+          </div>
         </div>
       </nav>
 
