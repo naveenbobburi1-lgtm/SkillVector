@@ -14,6 +14,11 @@ from auth import hash_password,verify_password,create_access_token,get_current_u
 load_dotenv()
 init_db()
 
+def invalidate_learning_path(user_id: int, db: Session):
+    """Deletes the existing learning path for a user to force regeneration."""
+    db.query(LearningPath).filter(LearningPath.user_id == user_id).delete()
+    db.commit()
+
 app = FastAPI()
 print(os.getenv("SECRET_KEY"))
 
@@ -241,6 +246,10 @@ async def create_or_update_profile(
 
     db.commit()
     db.refresh(db_profile)
+    
+    # Invalidate learning path
+    invalidate_learning_path(current_user.id, db)
+    
     return db_profile
 
 @app.get("/profile", response_model=profile_schemas.ProfileResponse)
@@ -301,6 +310,10 @@ async def create_user_details(
             db.add(new_profile)
         
         db.commit()
+        
+        # Invalidate learning path
+        invalidate_learning_path(current_user.id, db)
+        
         return {"message": "User profile saved successfully"}
 
     except Exception as e:
@@ -383,7 +396,11 @@ async def add_skill(
 
         current_skills.append(skill_data.skill)
         profile.skills = json.dumps(current_skills)
+        profile.skills = json.dumps(current_skills)
         db.commit()
+        
+        # Invalidate learning path
+        invalidate_learning_path(current_user.id, db)
         
         return {"message": "Skill added", "skills": current_skills}
         
@@ -413,7 +430,11 @@ async def add_certification(
         current_certs.append(new_cert)
         
         profile.certifications = json.dumps(current_certs)
+        profile.certifications = json.dumps(current_certs)
         db.commit()
+        
+        # Invalidate learning path
+        invalidate_learning_path(current_user.id, db)
         
         return {"message": "Certification added", "certifications": current_certs}
         

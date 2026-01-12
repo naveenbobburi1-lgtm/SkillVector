@@ -2,24 +2,13 @@
 
 import { Canvas } from '@react-three/fiber'
 import { Suspense, useEffect } from 'react'
-import { SkillCloud } from './SkillCloud'
 import { useSkillStore } from './store'
-import { EffectComposer, Noise, Vignette } from '@react-three/postprocessing'
 
 function Scene() {
     return (
         <>
             <color attach="background" args={['#F5F5F0']} />
-            {/* Fog to hide the edges and create depth */}
             <fog attach="fog" args={['#F5F5F0', 5, 25]} />
-
-            {/* SkillCloud removed per user request to fix overlay issues */}
-            {/* <SkillCloud /> */}
-
-            {/* <EffectComposer disableNormalPass>
-                <Noise opacity={0.05} />
-                <Vignette eskil={false} offset={0.1} darkness={0.5} />
-            </EffectComposer> */}
         </>
     )
 }
