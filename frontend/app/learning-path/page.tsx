@@ -169,71 +169,122 @@ export default function LearningPathPage() {
               {/* Node */}
               <div className={`absolute -left-[9px] top-0 h-4 w-4 rounded-full border-4 border-background ${index === 0 ? 'bg-primary shadow-[0_0_0_4px_rgba(124,58,237,0.2)]' : 'bg-surface-2'}`}></div>
 
+              {/* Content Grid */}
               <div className="flex flex-col gap-6">
-                <h2 className="text-2xl font-bold text-text-main flex items-center gap-3">
-                  Phase {index + 1}: {stage.stage}
-                  {index === 0 && <span className="px-2 py-0.5 rounded text-xs font-medium bg-primary text-white">IN PROGRESS</span>}
-                </h2>
-
-                {/* Metadata for Stage */}
-                <div className="flex flex-wrap gap-4 text-sm text-text-muted">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-lg">schedule</span>
-                    {stage.duration_months} Months
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-lg">school</span>
-                    Focus: {stage.focus.join(", ")}
+                {/* Header */}
+                <div>
+                  <h2 className="text-2xl font-bold text-text-main flex items-center gap-3">
+                    Phase {index + 1}: {stage.stage}
+                    {index === 0 && <span className="px-2 py-0.5 rounded text-xs font-medium bg-primary text-white">IN PROGRESS</span>}
+                  </h2>
+                  <div className="flex flex-wrap gap-4 text-sm text-text-muted mt-2">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-lg">schedule</span>
+                      {stage.duration_months} Months
+                    </div>
                   </div>
                 </div>
 
-                {/* Module Cards Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Why this module */}
+                <div className="bg-surface-2/50 border border-border rounded-xl p-4">
+                  <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-2 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-lg text-primary">psychology</span>
+                    Why this module?
+                  </h3>
+                  <p className="text-text-main text-sm leading-relaxed italic">
+                    "{stage.why_this_module || "This module is essential for building the foundational skills required for your target role."}"
+                  </p>
+                </div>
 
-                  {/* Resources Column */}
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider">Resources</h3>
-                    {stage.resources.map((resource, rIndex) => (
-                      <div key={rIndex} className="group bg-surface-1 border border-border rounded-xl p-5 hover:border-primary/50 transition-all cursor-pointer relative overflow-hidden">
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="h-8 w-8 rounded-lg bg-surface-2 flex items-center justify-center text-primary">
-                            <span className="material-symbols-outlined text-lg">menu_book</span>
-                          </div>
-                          <span className="text-xs font-mono text-text-dim">{resource.platform}</span>
-                        </div>
-                        <h4 className="text-base font-bold text-text-main mb-1 line-clamp-1">{resource.title}</h4>
-                        <a href={resource.link} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
-                          Go to Course <span className="material-symbols-outlined text-[10px]">open_in_new</span>
-                        </a>
-                      </div>
-                    ))}
+                {/* Topics & Skills Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Topics */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-3">Key Topics</h3>
+                    <ul className="space-y-2">
+                      {stage.topics?.map((topic, tIndex) => (
+                        <li key={tIndex} className="flex items-start gap-2 text-sm text-text-muted">
+                          <span className="material-symbols-outlined text-base text-primary mt-0.5">check_circle</span>
+                          <span>{topic}</span>
+                        </li>
+                      )) || (
+                          <li className="text-sm text-text-muted italic">Topics loading...</li>
+                        )}
+                    </ul>
                   </div>
 
-                  {/* Projects Column */}
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider">Projects</h3>
-                    {stage.projects.map((project, pIndex) => (
-                      <div key={pIndex} className="group bg-surface-1 border border-border rounded-xl p-5 hover:border-primary/50 transition-all cursor-pointer">
+                  {/* Skills Tags */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-3">Skills Acquired</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {stage.skills.map((skill, sIndex) => (
+                        <span key={sIndex} className="px-3 py-1 rounded-full bg-surface-2 border border-border text-xs font-medium text-text-muted hover:text-text-main hover:border-primary/50 transition-colors cursor-default">
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Resources Section */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-2">Curated Resources</h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* Courses */}
+                    {stage.resources.filter(r => r.type === 'Course').map((resource, rIndex) => (
+                      <a key={`course-${rIndex}`} href={resource.link} target="_blank" rel="noopener noreferrer" className="group flex flex-col p-4 bg-surface-1 border border-border rounded-xl hover:border-primary/50 transition-all">
                         <div className="flex justify-between items-start mb-2">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-500 uppercase">Course</span>
+                          <span className="material-symbols-outlined text-sm text-text-muted group-hover:text-primary transition-colors">open_in_new</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-text-main mb-1 line-clamp-2 group-hover:text-primary transition-colors">{resource.title}</h4>
+                        <p className="text-xs text-text-muted mt-auto pt-2 border-t border-border/50">{resource.platform}</p>
+                      </a>
+                    ))}
+
+                    {/* Articles */}
+                    {stage.resources.filter(r => r.type === 'Article').map((resource, rIndex) => (
+                      <a key={`article-${rIndex}`} href={resource.link} target="_blank" rel="noopener noreferrer" className="group flex flex-col p-4 bg-surface-1 border border-border rounded-xl hover:border-primary/50 transition-all">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/10 text-green-500 uppercase">Article</span>
+                          <span className="material-symbols-outlined text-sm text-text-muted group-hover:text-primary transition-colors">open_in_new</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-text-main mb-1 line-clamp-2 group-hover:text-primary transition-colors">{resource.title}</h4>
+                        <p className="text-xs text-text-muted mt-auto pt-2 border-t border-border/50">{resource.platform}</p>
+                      </a>
+                    ))}
+
+                    {/* Books */}
+                    {stage.resources.filter(r => r.type === 'Book').map((resource, rIndex) => (
+                      <a key={`book-${rIndex}`} href={resource.link} target="_blank" rel="noopener noreferrer" className="group flex flex-col p-4 bg-surface-1 border border-border rounded-xl hover:border-primary/50 transition-all">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 uppercase">Book</span>
+                          <span className="material-symbols-outlined text-sm text-text-muted group-hover:text-primary transition-colors">open_in_new</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-text-main mb-1 line-clamp-2 group-hover:text-primary transition-colors">{resource.title}</h4>
+                        <p className="text-xs text-text-muted mt-auto pt-2 border-t border-border/50">{resource.platform}</p>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Projects Section */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-2">Hands-on Projects</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {stage.projects.map((project, pIndex) => (
+                      <div key={pIndex} className="bg-surface-1 border border-border rounded-xl p-5">
+                        <div className="flex items-center gap-3 mb-2">
                           <div className="h-8 w-8 rounded-lg bg-surface-2 flex items-center justify-center text-success">
                             <span className="material-symbols-outlined text-lg">code_blocks</span>
                           </div>
+                          <h4 className="text-sm font-bold text-text-main">{project.title}</h4>
                         </div>
-                        <h4 className="text-base font-bold text-text-main mb-1">{project.title}</h4>
-                        <p className="text-sm text-text-muted line-clamp-2">{project.description}</p>
+                        <p className="text-sm text-text-muted line-clamp-3">{project.description}</p>
                       </div>
                     ))}
                   </div>
-
-                </div>
-
-                {/* Skills Tags */}
-                <div className="flex flex-wrap gap-2 pt-2">
-                  {stage.skills.map((skill, sIndex) => (
-                    <span key={sIndex} className="px-3 py-1 rounded-full bg-surface-2 border border-border text-xs font-medium text-text-muted hover:text-text-main hover:border-primary/50 transition-colors cursor-default">
-                      {skill}
-                    </span>
-                  ))}
                 </div>
 
               </div>

@@ -85,7 +85,8 @@ async def generate_learning_path(
     You are an AI system that generates structured learning paths.
 
     TASK:
-    Generate a personalized learning path for the following user.
+    Generate a highly personalized, comprehensive learning path for the following user.
+    Establish a clear logical progression.
 
     USER DETAILS:
     - Target Role: {profile.desired_role}
@@ -117,11 +118,13 @@ async def generate_learning_path(
         {{
           "stage": string,
           "duration_months": number,
+          "why_this_module": string, // Explanation of why this module is important and why it comes at this stage
+          "topics": [string], // Detailed list of 5-8 sub-topics covered
           "focus": [string],
           "skills": [string],
           "resources": [
             {{
-              "type": string,
+              "type": "Course" | "Article" | "Book",
               "title": string,
               "platform": string,
               "link": string
@@ -136,6 +139,14 @@ async def generate_learning_path(
         }}
       ]
     }}
+
+    CRITICAL CONTENT REQUIREMENTS:
+    1. "why_this_module": Provide a clear, motivating reason for this module's placement and importance.
+    2. "topics": List 5-8 detailed sub-topics.
+    3. "resources": You MUST provide EXACTLY 5 resources per module:
+       - 2 high-quality Courses (e.g., Coursera, Udemy, edX, YouTube Playlists)
+       - 2 insightful Articles/Blogs
+       - 1 highly-rated Book
     """
 
     response = client.chat.completions.create(

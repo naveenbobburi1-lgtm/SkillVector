@@ -1,5 +1,5 @@
 export interface Resource {
-    type: string;
+    type: "Course" | "Article" | "Book";
     title: string;
     platform: string;
     link: string;
@@ -13,6 +13,8 @@ export interface Project {
 export interface LearningPathStage {
     stage: string;
     duration_months: number;
+    why_this_module: string;
+    topics: string[];
     focus: string[];
     skills: string[];
     resources: Resource[];
