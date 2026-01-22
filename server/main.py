@@ -63,79 +63,11 @@ async def login_user(user:schemas.UserLogin,db:Session=Depends(get_db)):
     access_token=create_access_token(data={"sub":db_user.email})   
     return {"access_token":access_token,"token_type":"bearer","user_id":db_user.id}
 
-# @app.get("/debug-path")
-# async def debug_generate_learning_path(
-#     db: Session = Depends(get_db)
-# ):
-#     print("DEBUG generate-path called")
-
-#     # 🔹 Pick ANY user for testing
-#     current_user = db.query(UserProfile).filter(UserProfile.user_id == 18).first()
-#     if not current_user:
-#         return {"error": "No users found in database"}
-
-#     profile = db.query(UserProfile).filter(
-#         UserProfile.user_id == current_user.id
-#     ).first()
-
-#     if not profile:
-#         return {"error": "User profile not found"}
-
-#     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-
-#     skills = json.loads(profile.skills) if profile.skills else []
-#     industries = json.loads(profile.preferred_industries) if profile.preferred_industries else []
-
-#     # 🔹 RAG PIPELINE
-#     try:
-#         search_queries = generate_search_queries(profile)
-#         print("SEARCH QUERIES:", search_queries)
-
-#         web_context = batch_retrieve(search_queries, max_sources=20)
-#         web_context = web_context[:6000]
-#         print("WEB CONTEXT LENGTH:", len(web_context))
-
-#     except Exception as e:
-#         print("RAG FAILED:", e)
-#         web_context = ""
-
-#     prompt = f"""
-# You are an AI system that generates structured learning paths.
-
-# SOURCES:
-# {web_context}
-
-# USER:
-# Role: {profile.desired_role}
-# Skills: {', '.join(skills)}
-
-# Return ONLY valid JSON with keys:
-# meta, learning_path
-# """
-
-#     response = client.chat.completions.create(
-#         model="llama-3.3-70b-versatile",
-#         messages=[{"role": "user", "content": prompt}],
-#         temperature=0.2
-#     )
-
-#     content = response.choices[0].message.content
-#     content = clean_llm_json(content)
-
-#     try:
-#         path_json = json.loads(content)
-#     except json.JSONDecodeError:
-#         return {
-#             "error": "Invalid JSON from model",
-#             "raw_output": content
-#         }
-
 @app.get("/generate-path")
 async def generate_learning_path(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
-    print("Unnanayya lawdaS")
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
     
     if not profile:
@@ -153,7 +85,7 @@ async def generate_learning_path(
     industries = json.loads(profile.preferred_industries) if profile.preferred_industries else []
 
     # ==================================================
-    # 🔹 RAG PIPELINE (SAFE + STABLE)
+    # RAG PIPELINE 
     # ==================================================
 
     try:
@@ -163,11 +95,8 @@ async def generate_learning_path(
         print("RAG FAILED:", e)
         web_context = ""
 
-    web_context = web_context[:6000]  # HARD TOKEN CAP
-
-    # ==================================================
-    # 🔹 MAIN PROMPT (ONLY ADDITIONS)
-    # ==================================================
+    web_context = web_context[:6000]  # token limit safety
+    # Prompt Construction 
 
     prompt = f"""
 You are an AI system that generates structured learning paths.
