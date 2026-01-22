@@ -129,7 +129,7 @@ export default function LearningPathPage() {
                 AI Generated
               </span>
               <span className="text-xs font-mono font-bold text-text-dim uppercase tracking-wider">
-                {data.meta.level || "Beginner"}
+                {data?.meta?.level ?? "Beginner"}
               </span>
             </div>
             <h1 className="text-4xl md:text-5xl font-bold text-text-main tracking-tight mb-4">

@@ -4,12 +4,15 @@ from db.database import get_db,init_db
 from db.models import UserDB, UserProfile, ProfileDB, SkillDB, CertificationDB, CareerGoalDB, LearningPath
 import schemas.UserSchemas as schemas
 import schemas.ProfileSchemas as profile_schemas
+from rag.retriever import clean_llm_json
 from sqlalchemy.orm import Session
 import os
 from groq import Groq
 import json
 from dotenv import load_dotenv
 from auth import hash_password,verify_password,create_access_token,get_current_user
+from rag.query_planner import generate_search_queries
+from rag.batch_retriever import batch_retrieve
 
 load_dotenv()
 init_db()
@@ -60,17 +63,85 @@ async def login_user(user:schemas.UserLogin,db:Session=Depends(get_db)):
     access_token=create_access_token(data={"sub":db_user.email})   
     return {"access_token":access_token,"token_type":"bearer","user_id":db_user.id}
 
+# @app.get("/debug-path")
+# async def debug_generate_learning_path(
+#     db: Session = Depends(get_db)
+# ):
+#     print("DEBUG generate-path called")
+
+#     # 🔹 Pick ANY user for testing
+#     current_user = db.query(UserProfile).filter(UserProfile.user_id == 18).first()
+#     if not current_user:
+#         return {"error": "No users found in database"}
+
+#     profile = db.query(UserProfile).filter(
+#         UserProfile.user_id == current_user.id
+#     ).first()
+
+#     if not profile:
+#         return {"error": "User profile not found"}
+
+#     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+#     skills = json.loads(profile.skills) if profile.skills else []
+#     industries = json.loads(profile.preferred_industries) if profile.preferred_industries else []
+
+#     # 🔹 RAG PIPELINE
+#     try:
+#         search_queries = generate_search_queries(profile)
+#         print("SEARCH QUERIES:", search_queries)
+
+#         web_context = batch_retrieve(search_queries, max_sources=20)
+#         web_context = web_context[:6000]
+#         print("WEB CONTEXT LENGTH:", len(web_context))
+
+#     except Exception as e:
+#         print("RAG FAILED:", e)
+#         web_context = ""
+
+#     prompt = f"""
+# You are an AI system that generates structured learning paths.
+
+# SOURCES:
+# {web_context}
+
+# USER:
+# Role: {profile.desired_role}
+# Skills: {', '.join(skills)}
+
+# Return ONLY valid JSON with keys:
+# meta, learning_path
+# """
+
+#     response = client.chat.completions.create(
+#         model="llama-3.3-70b-versatile",
+#         messages=[{"role": "user", "content": prompt}],
+#         temperature=0.2
+#     )
+
+#     content = response.choices[0].message.content
+#     content = clean_llm_json(content)
+
+#     try:
+#         path_json = json.loads(content)
+#     except json.JSONDecodeError:
+#         return {
+#             "error": "Invalid JSON from model",
+#             "raw_output": content
+#         }
+
 @app.get("/generate-path")
 async def generate_learning_path(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
+    print("Unnanayya lawdaS")
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
     
     if not profile:
-         raise HTTPException(status_code=400, detail="User profile not found. Please complete your profile first.")
+        raise HTTPException(status_code=400, detail="User profile not found. Please complete your profile first.")
 
-    # Check if we already have a generated path for this user
+    # Return cached path if exists
     existing_path = db.query(LearningPath).filter(LearningPath.user_id == current_user.id).first()
     if existing_path:
         return json.loads(existing_path.path_data)
@@ -80,92 +151,121 @@ async def generate_learning_path(
     # Parse JSON fields safely
     skills = json.loads(profile.skills) if profile.skills else []
     industries = json.loads(profile.preferred_industries) if profile.preferred_industries else []
-    
+
+    # ==================================================
+    # 🔹 RAG PIPELINE (SAFE + STABLE)
+    # ==================================================
+
+    try:
+        search_queries = generate_search_queries(profile)
+        web_context = batch_retrieve(search_queries, max_sources=20)
+    except Exception as e:
+        print("RAG FAILED:", e)
+        web_context = ""
+
+    web_context = web_context[:6000]  # HARD TOKEN CAP
+
+    # ==================================================
+    # 🔹 MAIN PROMPT (ONLY ADDITIONS)
+    # ==================================================
+
     prompt = f"""
-    You are an AI system that generates structured learning paths.
+You are an AI system that generates structured learning paths.
 
-    TASK:
-    Generate a highly personalized, comprehensive learning path for the following user.
-    Establish a clear logical progression.
+IMPORTANT INSTRUCTIONS (STRICT):
+- Use ONLY the resources provided in the SOURCES section.
+- Do NOT invent links, platforms, or book names.
+- If a resource is not present in SOURCES, do NOT include it.
+- YouTube videos or playlists from SOURCES are allowed for Courses.
 
-    USER DETAILS:
-    - Target Role: {profile.desired_role}
-    - Current Education: {profile.education_level}
-    - Current Status: {profile.current_status}
-    - Location: {profile.location}
-    - Existing Skills: {', '.join(skills)}
-    - Preferred Industries: {', '.join(industries)}
-    - Expected Income: {profile.expected_income}
-    - Willing to Relocate: {profile.relocation}
-    - Learning Pace: {profile.learning_pace}
-    - Hours per Week: {profile.hours_per_week}
-    - Budget Sensitivity: {profile.budget_sensitivity}
-    - User Email: {current_user.email}
+SOURCES:
+{web_context}
 
-    OUTPUT RULES (STRICT):
-    - Respond ONLY in valid JSON
-    - Do NOT include explanations or markdown
-    - Follow EXACTLY this JSON structure:
+TASK:
+Generate a highly personalized, comprehensive learning path for the following user.
+Establish a clear logical progression.
 
+USER DETAILS:
+- Target Role: {profile.desired_role}
+- Current Education: {profile.education_level}
+- Current Status: {profile.current_status}
+- Location: {profile.location}
+- Existing Skills: {', '.join(skills)}
+- Preferred Industries: {', '.join(industries)}
+- Expected Income: {profile.expected_income}
+- Willing to Relocate: {profile.relocation}
+- Learning Pace: {profile.learning_pace}
+- Hours per Week: {profile.hours_per_week}
+- Budget Sensitivity: {profile.budget_sensitivity}
+- User Email: {current_user.email}
+
+OUTPUT RULES (STRICT):
+- Respond ONLY in valid JSON
+- Do NOT include explanations or markdown
+- Follow EXACTLY this JSON structure:
+
+{{
+  "meta": {{
+    "goal": string,
+    "duration_months": number,
+    "weekly_time_hours": number,
+    "level": string
+  }},
+  "learning_path": [
     {{
-      "meta": {{
-        "goal": string,
-        "duration_months": number,
-        "weekly_time_hours": number,
-        "level": string
-      }},
-      "learning_path": [
+      "stage": string,
+      "duration_months": number,
+      "why_this_module": string,
+      "topics": [string],
+      "focus": [string],
+      "skills": [string],
+      "resources": [
         {{
-          "stage": string,
-          "duration_months": number,
-          "why_this_module": string, // Explanation of why this module is important and why it comes at this stage
-          "topics": [string], // Detailed list of 5-8 sub-topics covered
-          "focus": [string],
-          "skills": [string],
-          "resources": [
-            {{
-              "type": "Course" | "Article" | "Book",
-              "title": string,
-              "platform": string,
-              "link": string
-            }}
-          ],
-          "projects": [
-            {{
-              "title": string,
-              "description": string
-            }}
-          ]
+          "type": "Course" | "Article" | "Book",
+          "title": string,
+          "platform": string,
+          "link": string
+        }}
+      ],
+      "projects": [
+        {{
+          "title": string,
+          "description": string
         }}
       ]
     }}
+  ]
+}}
 
-    CRITICAL CONTENT REQUIREMENTS:
-    1. "why_this_module": Provide a clear, motivating reason for this module's placement and importance.
-    2. "topics": List 5-8 detailed sub-topics.
-    3. "resources": You MUST provide EXACTLY 5 resources per module:
-       - 2 high-quality Courses (e.g., Coursera, Udemy, edX, YouTube Playlists)
-       - 2 insightful Articles/Blogs
-       - 1 highly-rated Book
-    """
+CRITICAL CONTENT REQUIREMENTS:
+1. "why_this_module": Explain why this module is important and correctly placed.
+2. "topics": 5–8 detailed sub-topics per module.
+3. "resources": EXACTLY 5 per module:
+   - 2 Courses (Coursera / Udemy / edX / YouTube)
+   - 2 Articles or Blogs
+   - 1 Book
+"""
 
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.2
+        temperature=0.2,
+        response_format={"type": "json_object"}
     )
 
+
     content = response.choices[0].message.content
+    content = clean_llm_json(content)
 
     try:
         path_json = json.loads(content)
-        
-        # Save to Database (Create only, since we checked existence above)
+
         new_path = LearningPath(user_id=current_user.id, path_data=content)
         db.add(new_path)
         db.commit()
-        
+
         return path_json
+
     except json.JSONDecodeError:
         return {
             "error": "Model returned invalid JSON",
