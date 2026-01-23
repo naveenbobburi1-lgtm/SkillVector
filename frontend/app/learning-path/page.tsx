@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LearningPathResponse } from "./types";
 import { API_BASE_URL, getToken, removeToken } from "@/lib/auth";
+import UserMenu from "@/components/UserMenu";
 
 export default function LearningPathPage() {
   const router = useRouter();
@@ -107,15 +108,10 @@ export default function LearningPathPage() {
             <span className="material-symbols-outlined text-lg text-text-muted hover:text-text-main transition-colors">notifications</span>
           </div>
 
-          <div className="flex items-center gap-3 pl-2 border-l border-border/50">
-            <div className="hidden md:block text-right">
-              <div className="text-sm font-semibold text-text-main leading-none">{profile?.username || "User"}</div>
-              <div className="text-[10px] font-medium text-text-muted uppercase tracking-wider">Member</div>
-            </div>
-            <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-primary to-blue-500 border-2 border-surface-1 shadow-lg flex items-center justify-center">
-              <span className="text-sm font-bold text-white uppercase">{(profile?.username || "U").charAt(0)}</span>
-            </div>
-          </div>
+          <UserMenu
+            username={profile?.username}
+            currentStatus="Member"
+          />
         </div>
       </nav>
 

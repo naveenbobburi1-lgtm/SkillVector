@@ -10,6 +10,7 @@ import {
 } from "@/lib/market";
 import SkillGapChart from "@/components/market/SkillGapChart";
 import InsightCard from "@/components/market/InsightCard";
+import UserMenu from "@/components/UserMenu";
 
 export default function MarketInsightsPage() {
     const [loading, setLoading] = useState(true);
@@ -84,7 +85,9 @@ export default function MarketInsightsPage() {
                     <span className="text-primary font-semibold bg-primary/5 px-3 py-1 rounded-full">Market Insights</span>
                 </div>
 
-                <div className="w-8"></div>
+                <UserMenu
+                    username="User" // TODO: Fetch real user name
+                />
             </nav>
 
             <main className="flex-1 max-w-7xl w-full mx-auto p-6 lg:p-10 space-y-10">
