@@ -10,7 +10,7 @@ import {
 } from "@/lib/market";
 import SkillGapChart from "@/components/market/SkillGapChart";
 import InsightCard from "@/components/market/InsightCard";
-import UserMenu from "@/components/UserMenu";
+import Navbar from "@/components/Navbar";
 
 export default function MarketInsightsPage() {
     const [loading, setLoading] = useState(true);
@@ -71,24 +71,7 @@ export default function MarketInsightsPage() {
     return (
         <div className="min-h-screen bg-background text-text-main font-sans selection:bg-primary selection:text-white flex flex-col">
             {/* Top Navigation Bar */}
-            <nav className="sticky top-0 z-50 bg-surface-1/80 backdrop-blur-md border-b border-border h-16 flex items-center justify-between px-4 lg:px-8">
-                <Link href="/" className="flex items-center gap-3 group">
-                    <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform">
-                        <span className="material-symbols-outlined text-white text-lg">hub</span>
-                    </div>
-                    <span className="font-bold text-lg tracking-tight">Skillvector</span>
-                </Link>
-
-                <div className="hidden md:flex items-center gap-8 text-sm font-medium text-text-muted">
-                    <Link href="/learning-path" className="hover:text-primary transition-colors">Learning Path</Link>
-                    <Link href="/profile" className="hover:text-primary transition-colors">Profile</Link>
-                    <span className="text-primary font-semibold bg-primary/5 px-3 py-1 rounded-full">Market Insights</span>
-                </div>
-
-                <UserMenu
-                    username="User" // TODO: Fetch real user name
-                />
-            </nav>
+            <Navbar activePage="market-insights" />
 
             <main className="flex-1 max-w-7xl w-full mx-auto p-6 lg:p-10 space-y-10">
 

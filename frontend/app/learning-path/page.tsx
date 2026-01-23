@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { LearningPathResponse } from "./types";
 import { API_BASE_URL, getToken, removeToken } from "@/lib/auth";
 import UserMenu from "@/components/UserMenu";
+import Navbar from "@/components/Navbar";
 
 export default function LearningPathPage() {
   const router = useRouter();
@@ -86,34 +87,12 @@ export default function LearningPathPage() {
 
   if (!data) return null;
 
+
+  // ... existing code ...
+
   return (
     <div className="min-h-screen bg-background text-text-main font-sans selection:bg-primary selection:text-white">
-      {/* Top Navigation Bar */}
-      <nav className="sticky top-0 z-50 bg-surface-1/80 backdrop-blur-md border-b border-border h-16 flex items-center justify-between px-4 lg:px-8">
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center shadow-lg shadow-primary/20">
-            <span className="material-symbols-outlined text-white text-lg">hub</span>
-          </div>
-          <span className="font-bold text-lg tracking-tight">Skillvector</span>
-        </div>
-
-        <div className="hidden md:flex items-center gap-6 text-sm font-medium text-text-muted">
-          <Link href="/learning-path" className="text-text-main font-semibold">Learning Path</Link>
-          <Link href="/profile" className="hover:text-primary transition-colors">Profile</Link>
-          <Link href="/market-insights" className="hover:text-primary transition-colors">Market Insights</Link>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="h-8 w-8 rounded-full bg-surface-2 border border-border flex items-center justify-center text-text-muted hover:text-white transition-colors cursor-pointer">
-            <span className="material-symbols-outlined text-lg text-text-muted hover:text-text-main transition-colors">notifications</span>
-          </div>
-
-          <UserMenu
-            username={profile?.username}
-            currentStatus="Member"
-          />
-        </div>
-      </nav>
+      <Navbar activePage="learning-path" />
 
       <main className="max-w-7xl mx-auto p-4 lg:p-8 space-y-10">
 

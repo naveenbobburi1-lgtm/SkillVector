@@ -144,6 +144,9 @@ async def generate_learning_path(
     prompt = f"""
 You are an AI system that generates structured learning paths.
 
+CRITICAL INSTRUCTION:
+- The generated path MUST fit exactly within the 'Target Timeline' specified by the user (e.g., if target is 3 months, total duration must be approx 3 months). Adjust the scope and depth of modules to fit this constraint.
+
 IMPORTANT INSTRUCTIONS (STRICT):
 - Use ONLY the resources provided in the SOURCES section.
 - Do NOT invent links, platforms, or book names.
