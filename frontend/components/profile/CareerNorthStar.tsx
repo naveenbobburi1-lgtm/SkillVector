@@ -7,9 +7,10 @@ interface CareerNorthStarProps {
     targetRole: string;
     velocity: string; // e.g. "Fast", "Moderate"
     matchScore: number;
+    marketSummary?: string; // New prop for AI text
 }
 
-export default function CareerNorthStar({ currentRole, targetRole, velocity, matchScore }: CareerNorthStarProps) {
+export default function CareerNorthStar({ currentRole, targetRole, velocity, matchScore, marketSummary }: CareerNorthStarProps) {
     return (
         <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group h-full flex flex-col justify-between">
             {/* Background Decor */}
@@ -109,6 +110,19 @@ export default function CareerNorthStar({ currentRole, targetRole, velocity, mat
                     </div>
                 )}
             </div>
+
+            {/* AI Market Pulse (Visual Proof of Dynamic Analysis) */}
+            {marketSummary && (
+                <div className="mt-4 p-3 bg-primary/5 border border-primary/10 rounded-xl relative">
+                    <div className="absolute -top-2 left-3 bg-background px-2 text-[10px] font-bold text-primary uppercase tracking-wider flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                        Live Market Pulse
+                    </div>
+                    <p className="text-xs text-text-muted leading-relaxed italic">
+                        "{marketSummary}"
+                    </p>
+                </div>
+            )}
         </div>
     );
 }

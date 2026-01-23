@@ -17,6 +17,7 @@ import ActionCommand from "@/components/profile/ActionCommand";
 export default function ProfilePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
+  const [analysis, setAnalysis] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   // Modal / Interaction State (Mocking simple alerts for now, full modals can be added later)
@@ -25,12 +26,28 @@ export default function ProfilePage() {
   useEffect(() => {
     async function fetchProfile() {
       try {
+        const token = getToken();
+        if (!token) {
+          router.push("/login");
+          return;
+        }
+
         const data = await getUserProfile();
         if (!data.is_complete) {
           router.push("/profile/setup");
           return;
         }
         setProfile(data);
+
+        // Fetch Dynamic Analysis
+        const analysisRes = await fetch(`${API_BASE_URL}/profile/analysis`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (analysisRes.ok) {
+          const analysisData = await analysisRes.json();
+          setAnalysis(analysisData);
+        }
+
       } catch (err) {
         console.error(err);
         router.push("/login");
@@ -119,18 +136,19 @@ export default function ProfilePage() {
             <CareerNorthStar
               currentRole={profile?.current_status || "Explorer"}
               targetRole={profile?.desired_role || "Unset Goal"}
-              velocity={profile?.learning_pace || "Moderate"}
-              matchScore={72} // Mocked score for now, connected to backend later
+              velocity={analysis?.north_star?.velocity || profile?.learning_pace || "Moderate"}
+              matchScore={analysis?.north_star?.score || 0}
+              marketSummary={analysis?.north_star?.market_summary}
             />
           </div>
 
           {/* Role Radar (Market Fit) - Medium */}
           <div className="col-span-1 md:col-span-1 lg:col-span-3 min-h-[280px]">
             <RoleRadar
-              salaryMatch={85}
-              demandMatch={92}
-              skillMatch={65}
-              futureGrowth={88}
+              salaryMatch={analysis?.radar?.salary || 0}
+              demandMatch={analysis?.radar?.demand || 0}
+              skillMatch={analysis?.radar?.skill || 0}
+              futureGrowth={analysis?.radar?.growth || 0}
             />
           </div>
 
@@ -163,8 +181,7 @@ export default function ProfilePage() {
 
           {/* Reality Gap - Narrow */}
           <div className="col-span-1 md:col-span-2 lg:col-span-4 min-h-[300px]">
-            {/* Mocking missing skills for dev. In real app, pass data from Market API */}
-            <RealityGapBridge missingSkills={["System Design", "Kubernetes", "GraphQL"]} />
+            <RealityGapBridge missingSkills={analysis?.gap_analysis?.missing_skills || []} />
           </div>
 
         </DashboardLayout>

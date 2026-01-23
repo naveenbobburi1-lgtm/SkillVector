@@ -17,6 +17,9 @@ from market.load_onet import load_onet_data
 from market.role_matcher import match_role_to_soc
 from market.skill_extractor import extract_top_skills
 from market.insights_engine import generate_market_insights
+import market.role_matcher as role_matcher
+import market.insights_engine as insights_engine
+import market.load_onet as load_onet
 load_dotenv()
 init_db()
 
@@ -272,6 +275,7 @@ async def user_profile(
         "education_level": profile.education_level,
         "current_status": profile.current_status,
         "location": profile.location,
+        "id": profile.id, 
         "skills": json.loads(profile.skills) if profile.skills else [],
         "certifications": json.loads(profile.certifications) if profile.certifications else [],
         "desired_role": profile.desired_role,
@@ -284,6 +288,91 @@ async def user_profile(
         "learning_format": json.loads(profile.learning_format) if profile.learning_format else [],
         "budget_sensitivity": profile.budget_sensitivity,
         "timeline": profile.timeline
+    }
+
+@app.get("/profile/analysis")
+async def profile_analysis(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    if not profile or not profile.desired_role:
+        return {"status": "incomplete", "message": "Profile or Target Role missing"}
+
+    # Load Data 
+    if "occupations" not in ONET_CACHE:
+         occupations, skills_df = load_onet_data()
+         ONET_CACHE["occupations"] = occupations
+         ONET_CACHE["skills"] = skills_df
+    else:
+         occupations = ONET_CACHE["occupations"]
+         skills_df = ONET_CACHE["skills"]
+    
+    # 1. Match Role to SOC
+    match = role_matcher.match_role_to_soc(profile.desired_role, occupations)
+    if not match:
+         # Fallback / Low score if no match
+         return {
+             "status": "no_match", 
+             "role": profile.desired_role,
+             "north_star": {"score": 20, "velocity": profile.learning_pace},
+             "radar": {"salary": 50, "demand": 50, "skill": 20, "growth": 50},
+             "gap_analysis": {"missing_skills": [], "market_skills": []}
+         }
+    
+    soc_code, soc_title = match
+
+    # 2. Get Market Skills for SOC
+    # Filter skills_df where 'O*NET-SOC Code' == soc_code
+    relevant_skills = skills_df[skills_df["O*NET-SOC Code"] == soc_code]
+    # Filter for Importance ("IM") and high values
+    top_market_skills = relevant_skills[relevant_skills["Scale ID"] == "IM"]
+    top_market_skills = top_market_skills.sort_values("Data Value", ascending=False).head(20)["Element Name"].tolist()
+
+    # 3. Analyze Gap
+    user_skills = json.loads(profile.skills) if profile.skills else []
+    insights = insights_engine.generate_market_insights(user_skills, top_market_skills)
+    
+    # 4. LLM Market Analysis
+    market_outlook = insights_engine.analyze_role_outlook(profile.desired_role)
+
+    # 5. Calculate Scores
+    coverage = insights["skill_coverage_percent"]
+    north_star_score = min(int(coverage * 1.2) + 20, 100) 
+
+    # Dynamic Radar Dimensions from LLM
+    salary_match = market_outlook.get("salary", 75)
+    demand_match = market_outlook.get("demand", 75)
+    future_growth = market_outlook.get("growth", 75)
+    skill_match = coverage
+
+    # Combine O*NET skills with LLM Trending Skills
+    combined_missing = insights["missing_skills"]
+    if market_outlook.get("trending_skills"):
+         # Add top 3 trending skills to suggestions if not present
+         for trend in market_outlook["trending_skills"][:3]:
+             if trend.lower() not in [s.lower() for s in user_skills] and trend not in combined_missing:
+                 combined_missing.insert(0, trend + " (Trending)")
+
+    return {
+        "status": "success",
+        "soc_code": soc_code,
+        "soc_title": soc_title,
+        "north_star": {
+            "score": north_star_score,
+            "velocity": profile.learning_pace or "Moderate",
+            "market_summary": market_outlook.get("summary", "")
+        },
+        "radar": {
+            "salary": salary_match,
+            "demand": demand_match,
+            "skill": skill_match,
+            "growth": future_growth
+        },
+        "gap_analysis": {
+            "missing_skills": combined_missing,
+            "market_skills": top_market_skills
+        }
     }
 
 
