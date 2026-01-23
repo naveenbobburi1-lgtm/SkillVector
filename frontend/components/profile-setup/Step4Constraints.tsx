@@ -33,6 +33,25 @@ export default function Step4Constraints({ data, updateData }: StepProps) {
 
             <div className="space-y-8">
 
+                {/* Target Timeline */}
+                <div className="space-y-4">
+                    <label className="text-sm font-bold text-text-dim uppercase tracking-wider ml-1">Target Timeline</label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {["1 Month", "3 Months", "6 Months", "1 Year+"].map((time) => (
+                            <button
+                                key={time}
+                                onClick={() => updateData({ timeline: time })}
+                                className={`p-4 rounded-xl border text-center font-bold transition-all ${data.timeline === time
+                                    ? "bg-primary text-white border-primary shadow-lg shadow-primary/20 scale-105"
+                                    : "bg-surface-1 border-border text-text-muted hover:text-text-main hover:bg-surface-2"
+                                    }`}
+                            >
+                                {time}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
                 {/* Learning Pace */}
                 <div className="space-y-4">
                     <label className="text-sm font-bold text-text-dim uppercase tracking-wider ml-1">Learning Velocity</label>
@@ -126,8 +145,8 @@ export default function Step4Constraints({ data, updateData }: StepProps) {
                                 key={fmt.name}
                                 onClick={() => toggleFormat(fmt.name)}
                                 className={`p-4 rounded-xl border text-sm font-bold transition-all flex flex-col items-center gap-3 ${data.learning_format?.includes(fmt.name)
-                                        ? "bg-primary text-white border-primary shadow-lg shadow-primary/20 transform -translate-y-1"
-                                        : "bg-surface-1 border-border text-text-muted hover:text-text-main hover:bg-surface-2"
+                                    ? "bg-primary text-white border-primary shadow-lg shadow-primary/20 transform -translate-y-1"
+                                    : "bg-surface-1 border-border text-text-muted hover:text-text-main hover:bg-surface-2"
                                     }`}
                             >
                                 <span className="material-symbols-outlined text-3xl">{fmt.icon}</span>

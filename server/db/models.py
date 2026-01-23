@@ -89,6 +89,7 @@ class UserProfile(Base):
     hours_per_week = Column(String, nullable=True)
     learning_format = Column(String, nullable=True) # Stored as JSON string
     budget_sensitivity = Column(String, nullable=True)
+    timeline = Column(String, nullable=True)
 
 
 class LearningPath(Base):

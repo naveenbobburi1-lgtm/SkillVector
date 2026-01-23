@@ -22,6 +22,7 @@ class UserProfileCreate(BaseModel):
     hours_per_week: str | None = None
     learning_format: list[str] | None = None
     budget_sensitivity: str | None = None
+    timeline: str | None = None
 
 class UserLogin(BaseModel):
     email: EmailStr

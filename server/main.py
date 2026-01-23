@@ -169,6 +169,7 @@ USER DETAILS:
 - Learning Pace: {profile.learning_pace}
 - Hours per Week: {profile.hours_per_week}
 - Budget Sensitivity: {profile.budget_sensitivity}
+- Target Timeline: {profile.timeline}
 - User Email: {current_user.email}
 
 OUTPUT RULES (STRICT):
@@ -278,7 +279,8 @@ async def user_profile(
         "learning_pace": profile.learning_pace,
         "hours_per_week": profile.hours_per_week,
         "learning_format": json.loads(profile.learning_format) if profile.learning_format else [],
-        "budget_sensitivity": profile.budget_sensitivity
+        "budget_sensitivity": profile.budget_sensitivity,
+        "timeline": profile.timeline
     }
 
 
@@ -380,7 +382,8 @@ async def create_user_details(
             "learning_pace": details.learning_pace,
             "hours_per_week": details.hours_per_week,
             "learning_format": learning_format_str,
-            "budget_sensitivity": details.budget_sensitivity
+            "budget_sensitivity": details.budget_sensitivity,
+            "timeline": details.timeline
         }
 
         if existing_profile:

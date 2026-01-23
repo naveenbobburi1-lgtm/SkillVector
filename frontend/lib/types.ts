@@ -15,4 +15,5 @@ export interface UserProfileData {
     hours_per_week?: string;
     learning_format?: string[];
     budget_sensitivity?: string;
+    timeline?: string;
 }

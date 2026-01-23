@@ -45,6 +45,7 @@ export default function ProfileWizard() {
                         learning_pace: profile.learning_pace,
                         learning_format: profile.learning_format || [],
                         budget_sensitivity: profile.budget_sensitivity,
+                        timeline: profile.timeline,
                     }));
                 }
             } catch (error) {
