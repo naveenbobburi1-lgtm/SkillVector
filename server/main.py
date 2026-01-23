@@ -13,7 +13,10 @@ from dotenv import load_dotenv
 from auth import hash_password,verify_password,create_access_token,get_current_user
 from rag.query_planner import generate_search_queries
 from rag.batch_retriever import batch_retrieve
-
+from market.load_onet import load_onet_data
+from market.role_matcher import match_role_to_soc
+from market.skill_extractor import extract_top_skills
+from market.insights_engine import generate_market_insights
 load_dotenv()
 init_db()
 
@@ -24,6 +27,17 @@ def invalidate_learning_path(user_id: int, db: Session):
 
 app = FastAPI()
 print(os.getenv("SECRET_KEY"))
+ONET_CACHE = {}
+
+@app.on_event("startup")
+def load_onet():
+    try:
+        occupations_df, skills_df = load_onet_data()
+        ONET_CACHE["occupations"] = occupations_df
+        ONET_CACHE["skills"] = skills_df
+        print("✅ O*NET data loaded")
+    except Exception as e:
+        print("❌ Failed to load O*NET:", e)
 
 app.add_middleware(
     CORSMiddleware,
@@ -62,6 +76,35 @@ async def login_user(user:schemas.UserLogin,db:Session=Depends(get_db)):
         raise HTTPException(status_code=401,detail="Invalid credentials")
     access_token=create_access_token(data={"sub":db_user.email})   
     return {"access_token":access_token,"token_type":"bearer","user_id":db_user.id}
+
+@app.get("/market-insights-test")
+async def market_insights(db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
+    if "occupations" not in ONET_CACHE:
+        raise HTTPException(status_code=500, detail="O*NET data not loaded")
+
+    occupations_df = ONET_CACHE["occupations"]
+    skills_df = ONET_CACHE["skills"]
+
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    if not profile:
+        raise HTTPException(status_code=400, detail="Profile not found")
+
+    user_role = profile.desired_role
+    user_skills = json.loads(profile.skills) if profile.skills else []
+
+    match = match_role_to_soc(user_role, occupations_df)
+    if not match:
+        raise HTTPException(status_code=404, detail="Role not found in O*NET")
+
+    soc_code, canonical_role = match
+    market_skills = extract_top_skills(soc_code, skills_df)
+    insights = generate_market_insights(user_skills, market_skills)
+
+    return {
+        "role": canonical_role,
+        "soc_code": soc_code,
+        "insights": insights
+    }
 
 @app.get("/generate-path")
 async def generate_learning_path(
