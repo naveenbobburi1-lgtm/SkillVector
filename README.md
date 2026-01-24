@@ -1,297 +1,228 @@
-# SkillVector - An AI-Powered Personalized Learning Path Generator
+# AI Learning Path Generator with Labor Market Insights
 
-> **SIH25199** - An intelligent system that generates customized learning and skill development pathways aligned with NSQF standards and industry demands.
+## 🎯 Project Overview
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14+-336791.svg)](https://www.postgresql.org/)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+**AI Learning Path Generator** is a full-stack AI system designed to bridge the gap between education and industry demands. It generates highly personalized, structured learning paths for users by leveraging **Retrieval-Augmented Generation (RAG)** and real-time **O*NET labor market data**.
 
-## 📋 Table of Contents
+Unlike standard course recommenders, this system:
+- **Validates** user goals against actual labor market trends (salary, demand, growth).
+- **Generates** multi-stage, week-by-week learning roadmaps grounded in high-quality web sources.
+- **Identifies** skill gaps by comparing user profiles with standardized **SOC (Standard Occupational Classification)** codes.
+- **Eliminates Hallucinations** by strictly grounding AI outputs in retrieved verified content.
 
-- [Overview](#overview)
-- [Features](#features)
-- [System Architecture](#system-architecture)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Running the Application](#running-the-application)
-- [API Documentation](#api-documentation)
-- [User Roles](#user-roles)
-- [Technologies Used](#technologies-used)
-- [Contributing](#contributing)
-- [License](#license)
+This project is built for **college final-year submissions**, **client demos**, and **portfolio showcases**, demonstrating advanced AI integration in a production-ready architecture.
 
-## 🎯 Overview
+---
 
-The AI-Powered Personalized Learning Path Generator addresses the skill gap between learners and job market demands by creating customized learning pathways. The system leverages AI, Machine Learning, and Labour Market Intelligence to recommend courses, certifications, and skill development programs aligned with individual learner profiles and NSQF (National Skills Qualification Framework) standards.
+## 🧠 Core Features
 
-### Vision
+### 1. User Authentication & Authorization
+- **Secure Access:** Implements **JWT (JSON Web Token)** based authentication.
+- **Password Security:** Uses `bcrypt` hashing via `passlib` to securely store credentials; passwords are never stored in plain text.
+- **Protected Routes:** API endpoints are guarded by `OAuth2PasswordBearer`, ensuring only authenticated users can access profile and generation features.
 
-To design a dynamic, adaptive learning recommendation system that supports lifelong learning, improves employability, and provides data-driven career guidance for learners across India.
+### 2. User Profile Management
+- **Detailed Profiling:** Captures comprehensive user data including education, current skills, desired role, location, learning pace (velocity), weekly hours, and budget sensitivity.
+- **Persistent Storage:** Profiles are stored in a **PostgreSQL** database, linked securely to the user account.
+- **Smart Invalidation:** Any update to critical profile fields (e.g., Target Role, Skills) automatically invalidates cached learning paths to ensure recommendations remain relevant.
 
-## ✨ Features
+### 3. AI Learning Path Generator
+- **Structured Output:** Uses **Llama 3 (via Groq)** to generate JSON-structured roadmaps.
+- **Custom Logic:**
+  - **Goal-Oriented:** Align path duration with user's specific timeline.
+  - **Granular Stages:** Breaks down learning into logical stages (e.g., "Foundations", "Advanced Concepts").
+  - **Resource Curation:** Each module includes top-tier resources (Courses, Articles, Books) strictly verified against search results.
 
-### Core Features
+### 4. Multi-Query RAG Pipeline
+- **Query Planner:** An LLM agent analyzes the user's profile to generate 8-10 diverse, high-value search queries (e.g., "Senior React Developer roadmap 2025", "Advanced System Design courses").
+- **Batch Retrieval:** Uses **Tavily AI** to perform parallel web searches, retrieving high-quality, relevant content.
+- **Context Aggregation:** deduplicates and aggregates search results into a clean context window for the generation model.
 
-- **Personalized Learning Paths** - AI-generated recommendations based on learner profiles, skills, and career goals
-- **NSQF Alignment** - Maps learner competencies to appropriate NSQF qualification levels
-- **Labour Market Intelligence** - Integrates current and future industry demand data
-- **Progress Tracking** - Dynamic updates based on learner performance and feedback
-- **Multi-user Support** - Separate interfaces for learners, trainers, counselors, and policymakers
-- **Multilingual Interface** - Accessible to learners from diverse linguistic backgrounds
-- **Analytics Dashboard** - Comprehensive insights for administrators and policymakers
-- **Skill Gap Analysis** - Identifies gaps between current skills and career requirements
+### 5. Source-Grounded Generation
+- **Anti-Hallucination:** The LLM is strictly prompted to use *only* the provided search context for resource recommendations.
+- **Validation:** Ensures that every course or article link suggested actually exists in the retrieved context.
 
-### Optional Features
+### 6. Learning Path Caching System
+- **Efficiency:** Generated paths are JSON-serialized and stored in the `learning_paths` table.
+- **Performance:** Subsequent requests for the same profile load instantly from the database, saving API costs and reducing latency.
+- **Auto-Expiry:** Caches are cleared automatically when user requirements change.
 
-- Integration with external e-learning platforms
-- Industry-specific learning path customization (IT, Healthcare, Manufacturing)
-- Mobile application with offline support
-- Gamification elements (badges, milestones, achievements)
+### 7. O*NET Labor Market Data Integration
+- **Standardized Data:** Loads **O*NET 29.0** occupation and skill datasets into memory at startup for high-performance lookups.
+- **Role Matching:** Uses fuzzy matching algorithms (TF-IDF/Cosine Similarity logic) to map free-text user roles (e.g., "React Dev") to standardized O*NET SOC codes (e.g., "15-1252.00 - Software Developers").
+
+### 8. Labor Market Insights Engine
+- **Gap Analysis:** Mathematically compares user's current skills against O*NET's "Hot Technologies" and top-demanded skills for the matched role.
+- **Metric Generation:** Calculates a **"North Star Score"** (overall fit) and specific matches for **Salary**, **Demand**, and **Growth**.
+
+### 9. AI Market Insights Layer
+- **Real-Time Analysis:** An additional LLM layer analyzes current market trends (2025/2026 outlook) to supplement O*NET data.
+- **Human-Readable Summaries:** Translates complex data into actionable insights (e.g., "Trending Skills: AI Agents, Rust", "Hot Sectors: Fintech").
+
+---
 
 ## 🏗️ System Architecture
 
-```
-┌─────────────────┐
-│   React Frontend │
-│   (Port 3000)    │
-└────────┬─────────┘
-         │
-         │ REST API
-         │
-┌────────▼──────────┐
-│  FastAPI Backend  │
-│   (Port 8000)     │
-└────────┬──────────┘
-         │
-    ┌────┴────┬──────────────┐
-    │         │              │
-┌───▼───┐ ┌──▼──────┐ ┌────▼─────┐
-│PostgreSQL│ │TensorFlow│ │  AWS    │
-│ Database │ │AI/ML Engine│ │ Cloud   │
-└──────────┘ └─────────┘ └──────────┘
-```
+The system follows a modern **Monorepo-style** full-stack architecture.
 
-## 📦 Prerequisites
+### 🖥️ System Architecture Diagram
 
-Before you begin, ensure you have the following installed:
+![System Architecture Diagram](C:/Users/pavan/.gemini/antigravity/brain/6a597093-4e65-4f35-ae91-6c0103be15c1/system_architecture_diagram_1769222096263.png)
 
-- **Python** 3.8 or higher
-- **Node.js** 16.x or higher
-- **PostgreSQL** 14 or higher
-- **Git**
-- **pip** (Python package manager)
-- **npm** or **yarn** (Node package manager)
+**Step-by-Step Data Flow:**
 
-## 🚀 Installation
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/your-username/ai-learning-path-generator.git
-cd ai-learning-path-generator
-```
-
-### 2. Backend Setup
-
-```bash
-# Navigate to backend directory
-cd backend
-
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-# On Windows:
-venv\Scripts\activate
-# On macOS/Linux:
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### 3. Frontend Setup
-
-```bash
-# Navigate to frontend directory
-cd ../frontend
-
-# Install dependencies
-npm install
-# or
-yarn install
-```
-
-### 4. Database Setup
-
-```bash
-# Login to PostgreSQL
-psql -U postgres
-
-# Create database
-CREATE DATABASE learning_path_db;
-
-# Create user (optional)
-CREATE USER learning_path_user WITH PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE learning_path_db TO learning_path_user;
-
-# Exit PostgreSQL
-\q
-```
-
-## ⚙️ Configuration
-
-### Backend Configuration
-
-Create a `.env` file in the `backend` directory:
-
-```env
-# Database Configuration
-DATABASE_URL=postgresql://learning_path_user:your_password@localhost:5432/learning_path_db
-
-# JWT Configuration
-SECRET_KEY=your-secret-key-here
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-
-# AWS Configuration (if using)
-AWS_ACCESS_KEY_ID=your-aws-access-key
-AWS_SECRET_ACCESS_KEY=your-aws-secret-key
-AWS_REGION=us-east-1
-
-# API Configuration
-API_HOST=0.0.0.0
-API_PORT=8000
-DEBUG=True
-
-# CORS Origins
-CORS_ORIGINS=http://localhost:3000
-```
-
-### Frontend Configuration
-
-Create a `.env` file in the `frontend` directory:
-
-```env
-REACT_APP_API_URL=http://localhost:8000/api
-REACT_APP_ENV=development
-```
-
-## 🏃 Running the Application
-
-### Start Backend Server
-
-```bash
-cd backend
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-The API will be available at `http://localhost:8000`
-
-### Start Frontend Development Server
-
-```bash
-cd frontend
-npm start
-# or
-yarn start
-```
-
-The application will be available at `http://localhost:3000`
-
-### Run Database Migrations
-
-```bash
-cd backend
-alembic upgrade head
-```
-
-## 📚 API Documentation
-
-Once the backend is running, access the interactive API documentation:
-
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-
-### Key API Endpoints
-
-```
-POST   /api/auth/register          - User registration
-POST   /api/auth/login             - User authentication
-GET    /api/learners/profile       - Get learner profile
-POST   /api/learners/assessment    - Submit learner assessment
-GET    /api/recommendations        - Get personalized learning paths
-POST   /api/progress/update        - Update learning progress
-GET    /api/analytics/dashboard    - Get analytics data
-GET    /api/reports/skill-gap      - Generate skill gap report
-```
-
-## 👥 User Roles
-
-1. **Learner** - Access personalized learning paths, track progress, view recommendations
-2. **Trainer/Institution** - Monitor learner progress, manage courses, view analytics
-3. **Counselor** - Provide guidance, review learner profiles, suggest career paths
-4. **Policymaker/Administrator** - Access aggregated analytics, manage system configuration
-
-## 🛠️ Technologies Used
-
-### Backend
-- **FastAPI** - Modern, fast web framework for building APIs
-- **Python** - Core programming language
-- **TensorFlow** - Machine learning and AI model development
-- **PostgreSQL** - Relational database management
-- **SQLAlchemy** - Python SQL toolkit and ORM
-- **Pydantic** - Data validation using Python type annotations
-- **JWT** - Secure authentication mechanism
-
-### Frontend
-- **React** - JavaScript library for building user interfaces
-- **TypeScript** - Type-safe JavaScript
-- **Material-UI / Tailwind CSS** - UI component libraries
-- **Axios** - HTTP client for API requests
-- **React Router** - Client-side routing
-- **Redux / Context API** - State management
-- **Chart.js / Recharts** - Data visualization
-
-### AI/ML
-- **TensorFlow** - Deep learning framework
-- **Scikit-learn** - Machine learning algorithms
-- **Pandas** - Data manipulation and analysis
-- **NumPy** - Numerical computing
-
-### DevOps & Cloud
-- **AWS** - Cloud hosting platform
-- **Docker** - Containerization (optional)
-- **GitHub Actions** - CI/CD pipeline
-
-## 🤝 Contributing
-
-We welcome contributions! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 📞 Support
-
-For support and queries:
-- Open an issue in the GitHub repository
-- Contact the development team
-
-## 🙏 Acknowledgments
-
-- National Skills Qualification Framework (NSQF)
-- National Council for Vocational Education and Training (NCVET)
-- Smart India Hackathon 2025
+1.  **🚀 User Login**: Frontend sends credentials → API verifies & issues **JWT**.
+2.  **📝 Profile Setup**: User hits `/profile` → Data saved to **Postgres** (Skills, Education, etc.).
+3.  **⚡ Path Generation Request**: User clicks "Generate" → API triggers **Query Planner**.
+4.  **🔍 Smart Retrieval**:
+    *   **Planner** generates 8-10 targeted search queries.
+    *   **Tavily** executes searches in parallel.
+    *   **RAG** aggregates & cleans results.
+5.  **🤖 AI Construction**:
+    *   **Llama 3** receives User Profile + Verified Search Results.
+    *   Constructs a valid JSON learning path.
+6.  **💾 Caching**: Valid JSON path is saved to `learning_paths` table for instant future access.
+7.  **📉 Market Analysis**: System loads O*NET data → Matches User Role → Calculates Demand/Salary scores.
 
 ---
+
+## 🗄️ Database Design
+
+The database is normalized to ensure data integrity and efficient querying.
+
+### 📊 Database ER Diagram
+
+![Database ER Diagram](C:/Users/pavan/.gemini/antigravity/brain/6a597093-4e65-4f35-ae91-6c0103be15c1/database_er_diagram_1769222121073.png)
+
+**Key Relationships:**
+- **One-to-One:** Users have exactly one Profile.
+- **One-to-One:** Users have exactly one Active Learning Path (logically enforced).
+- **JSON Fields:** `skills` and `path_data` are stored as JSONB for flexibility, allowing list structures without creating dozens of mapping tables.
+
+---
+
+## 🧪 API Documentation
+
+### Base URL: `http://localhost:8000`
+
+### 1. Authentication
+
+**POST** `/register`
+- **Body:**
+```json
+{
+  "username": "johndoe",
+  "email": "john@example.com",
+  "password": "securepassword123"
+}
+```
+
+**POST** `/login`
+- **Body:**
+```json
+{
+  "email": "john@example.com",
+  "password": "securepassword123"
+}
+```
+- **Response:**
+```json
+{
+  "access_token": "eyJhbGciOiJI...",
+  "token_type": "bearer",
+  "user_id": 1
+}
+```
+
+### 2. Profile
+
+**POST** `/userdetails` (Save/Update Profile)
+- **Body:** `{ ...full profile object... }`
+
+**GET** `/user-profile`
+- Retrieves the logged-in user's profile details.
+
+### 3. Generation
+
+**GET** `/generate-path`
+- **Headers:** `Authorization: Bearer <token>`
+- **Response:** Returns the complex JSON object containing the full learning path structure.
+
+### 4. Market Insights
+
+**GET** `/profile/analysis`
+- **Response:**
+```json
+{
+  "north_star": { "score": 85, "velocity": "Fast" },
+  "radar": { "salary": 80, "demand": 90, "growth": 85, "skill": 70 },
+  "gap_analysis": {
+    "missing_skills": ["Docker", "Kubernetes"],
+    "market_skills": ["React", "Node.js", "Docker", "AWS"]
+  }
+}
+```
+
+---
+
+## 🚀 Deployment
+
+### Local Deployment
+
+1.  **Clone the Repository**
+2.  **Backend Setup:**
+    ```bash
+    cd server
+    python -m venv venv
+    source venv/bin/activate  # or venv\Scripts\activate on Windows
+    pip install -r requirements.txt
+    
+    # Set up .env
+    # GROQ_API_KEY=...
+    # TAVILY_API_KEY=...
+    # DATABASE_URL=...
+    
+    uvicorn main:app --reload
+    ```
+3.  **Frontend Setup:**
+    ```bash
+    cd frontend
+    npm install
+    npm run dev
+    ```
+
+### Production Readiness (AWS/Docker)
+
+- **Dockerization:** Both Frontend and Backend can be containerized.
+    - `Dockerfile.backend`: `FROM python:3.9` -> `pip install` -> `CMD uvicorn`
+    - `Dockerfile.frontend`: `FROM node:18` -> `npm build` -> `CMD npm start`
+- **Cloud Architecture:**
+    - **EC2:** Host Docker containers via Docker Compose.
+    - **RDS (PostgreSQL):** Managed database service for reliability.
+    - **Nginx:** Reverse proxy to route traffic (`/api` -> Backend, `/` -> Frontend).
+
+**Why Production Ready?**
+- Uses **Environment Variables** for secrets.
+- **Stateless API** design (REST).
+- **Database Persistence** (not in-memory).
+- **Clean Separation** of concerns (Frontend/Backend).
+
+---
+
+## 🎓 Academic Value
+
+**For Tier-3 / Tier-4 College Submissions:**
+
+1.  **Beyond CRUD:** This is not just a "Student Management System". It uses **Generative AI** and **RAG**, which are cutting-edge industry standards.
+2.  **Real-World Data:** Integration with **O*NET** shows an understanding of data engineering and real-world datasets, not just dummy data.
+3.  **Complex Architecture:** Demonstrates ability to connect LLMs, External APIs (Tavily), Databases, and Modern Frontends.
+4.  **No IEEE Novelty Needed:** It's an **"Application Engineering"** project, focusing on *building a product* rather than inventing a new algorithm. This is often preferred for final year projects as it shows job-readiness.
+
+---
+
+## 📈 Future Enhancements
+
+1.  **Resume Parsing:** Upload a PDF resume to auto-fill the "Skills" and "Experience" profile sections using OCR/LLM.
+2.  **Job Posting Ingestion:** Scrape LinkedIn/Indeed to get real-time job descriptions instead of just O*NET data.
+3.  **Skill Scoring Models:** Create a quiz module to *verify* user skills rather than trusting self-reported data.
+4.  **Feedback Loop:** Allow users to rate generated paths, finetuning the prompt using Reinforcement Learning from Human Feedback (RLHF) concepts.
