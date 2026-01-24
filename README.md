@@ -211,12 +211,9 @@ The database is normalized to ensure data integrity and efficient querying.
 
 ## 🎓 Academic Value
 
-**For Tier-3 / Tier-4 College Submissions:**
-
 1.  **Beyond CRUD:** This is not just a "Student Management System". It uses **Generative AI** and **RAG**, which are cutting-edge industry standards.
 2.  **Real-World Data:** Integration with **O*NET** shows an understanding of data engineering and real-world datasets, not just dummy data.
 3.  **Complex Architecture:** Demonstrates ability to connect LLMs, External APIs (Tavily), Databases, and Modern Frontends.
-4.  **No IEEE Novelty Needed:** It's an **"Application Engineering"** project, focusing on *building a product* rather than inventing a new algorithm. This is often preferred for final year projects as it shows job-readiness.
 
 ---
 
