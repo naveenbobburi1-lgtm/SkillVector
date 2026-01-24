@@ -67,7 +67,7 @@ The system follows a modern **Monorepo-style** full-stack architecture.
 
 ### 🖥️ System Architecture Diagram
 
-![System Architecture Diagram](C:/Users/pavan/.gemini/antigravity/brain/6a597093-4e65-4f35-ae91-6c0103be15c1/system_architecture_diagram_1769222096263.png)
+![System Architecture Diagram](assets/system_architecture_diagram.png)
 
 **Step-by-Step Data Flow:**
 
@@ -92,7 +92,7 @@ The database is normalized to ensure data integrity and efficient querying.
 
 ### 📊 Database ER Diagram
 
-![Database ER Diagram](C:/Users/pavan/.gemini/antigravity/brain/6a597093-4e65-4f35-ae91-6c0103be15c1/database_er_diagram_1769222121073.png)
+![Database ER Diagram](assets/database_er_diagram.png)
 
 **Key Relationships:**
 - **One-to-One:** Users have exactly one Profile.
