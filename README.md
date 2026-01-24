@@ -2,7 +2,7 @@
 
 ## 🎯 Project Overview
 
-**AI Learning Path Generator** is a full-stack AI system designed to bridge the gap between education and industry demands. It generates highly personalized, structured learning paths for users by leveraging **Retrieval-Augmented Generation (RAG)** and real-time **O*NET labor market data**.
+**SkillVector - AI Learning Path Generator** is a full-stack AI system designed to bridge the gap between education and industry demands. It generates highly personalized, structured learning paths for users by leveraging **Retrieval-Augmented Generation (RAG)** and real-time **O*NET labor market data**.
 
 Unlike standard course recommenders, this system:
 - **Validates** user goals against actual labor market trends (salary, demand, growth).
