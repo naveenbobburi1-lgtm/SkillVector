@@ -1,4 +1,4 @@
-# AI Learning Path Generator with Labor Market Insights
+# SkillVector - AI Learning Path Generator with Labor Market Insights
 
 ## 🎯 Project Overview
 
