@@ -35,3 +35,10 @@ def retrieve_web_context(query: str) -> list[dict]:
         })
 
     return results
+if __name__ == "__main__":
+    test_query = "What is machine learning?"
+    contexts = retrieve_web_context(test_query)
+    for context in contexts:
+        print(f"Title: {context['title']}")
+        print(f"URL: {context['url']}")
+        print(f"Content: {context['content'][:200]}...\n")

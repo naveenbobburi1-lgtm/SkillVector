@@ -42,3 +42,12 @@ Rules:
             f"{profile.desired_role} free courses",
             f"{profile.desired_role} beginner to advanced"
         ]
+if __name__ == "__main__":
+    class Profile:
+        desired_role = "Data Scientist"
+        skills = "Python, Statistics"
+
+    profile = Profile()
+    queries = generate_search_queries(profile)
+    for q in queries:
+        print(q)    
