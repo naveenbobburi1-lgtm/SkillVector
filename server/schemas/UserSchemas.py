@@ -27,3 +27,13 @@ class UserProfileCreate(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    otp_code: str
+    new_password: str

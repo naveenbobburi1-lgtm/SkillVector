@@ -1,12 +1,14 @@
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from db.database import get_db,init_db
-from db.models import UserDB, UserProfile, ProfileDB, SkillDB, CertificationDB, CareerGoalDB, LearningPath
+from db.models import UserDB, UserProfile, ProfileDB, SkillDB, CertificationDB, CareerGoalDB, LearningPath, PasswordResetToken
 import schemas.UserSchemas as schemas
 import schemas.ProfileSchemas as profile_schemas
 from rag.retriever import clean_llm_json
 from sqlalchemy.orm import Session
 import os
+import secrets
+from datetime import datetime, timedelta, timezone
 from groq import Groq
 import json
 from dotenv import load_dotenv
@@ -79,6 +81,121 @@ async def login_user(user:schemas.UserLogin,db:Session=Depends(get_db)):
         raise HTTPException(status_code=401,detail="Invalid credentials")
     access_token=create_access_token(data={"sub":db_user.email})   
     return {"access_token":access_token,"token_type":"bearer","user_id":db_user.id}
+
+@app.post("/forgot-password")
+async def forgot_password(request: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Generate a 6-digit OTP and send it to the user's email."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    import random
+    
+    db_user = db.query(UserDB).filter(UserDB.email == request.email).first()
+    
+    if not db_user:
+        raise HTTPException(status_code=404, detail="No account found with this email address")
+    
+    # Generate 6-digit OTP
+    otp_code = str(random.randint(100000, 999999))
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)  # OTP valid for 10 minutes
+    
+    # Send OTP via email FIRST (before saving to DB)
+    try:
+        smtp_email = os.getenv("SMTP_EMAIL")
+        smtp_password = os.getenv("SMTP_PASSWORD")
+        
+        msg = MIMEMultipart()
+        msg['From'] = smtp_email
+        msg['To'] = request.email
+        msg['Subject'] = "SkillVector - Password Reset OTP"
+        
+        body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #f97316, #ea580c); padding: 30px; text-align: center;">
+                <h1 style="color: white; margin: 0;">SkillVector</h1>
+            </div>
+            <div style="padding: 30px; background: #ffffff;">
+                <h2 style="color: #1f2937;">Password Reset Request</h2>
+                <p style="color: #4b5563;">Hello {db_user.username},</p>
+                <p style="color: #4b5563;">We received a request to reset your password. Use the OTP below to complete the process:</p>
+                <div style="background: #f3f4f6; padding: 20px; text-align: center; border-radius: 12px; margin: 20px 0;">
+                    <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #f97316;">{otp_code}</span>
+                </div>
+                <p style="color: #6b7280; font-size: 14px;">This OTP is valid for 10 minutes.</p>
+                <p style="color: #6b7280; font-size: 14px;">If you didn't request this, you can safely ignore this email.</p>
+            </div>
+            <div style="background: #f9fafb; padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+                &copy; 2025 SkillVector Inc. All rights reserved.
+            </div>
+        </body>
+        </html>
+        """
+        
+        msg.attach(MIMEText(body, 'html'))
+        
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(smtp_email, smtp_password)
+        server.send_message(msg)
+        server.quit()
+        
+    except Exception as e:
+        print(f"Email sending failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to send OTP email. Please try again.")
+    
+    # Email sent successfully - now save OTP to database
+    # Invalidate any existing OTPs for this user
+    db.query(PasswordResetToken).filter(
+        PasswordResetToken.user_id == db_user.id,
+        PasswordResetToken.used == False
+    ).update({"used": True})
+    
+    # Store the OTP
+    reset_token = PasswordResetToken(
+        user_id=db_user.id,
+        email=request.email,
+        otp_code=otp_code,
+        expires_at=expires_at
+    )
+    db.add(reset_token)
+    db.commit()
+    
+    return {"message": "OTP sent to your email address", "email": request.email}
+
+@app.post("/reset-password")
+async def reset_password(request: schemas.ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Reset password using a valid OTP."""
+    # Find the OTP
+    reset_token = db.query(PasswordResetToken).filter(
+        PasswordResetToken.email == request.email,
+        PasswordResetToken.otp_code == request.otp_code,
+        PasswordResetToken.used == False
+    ).first()
+    
+    if not reset_token:
+        raise HTTPException(status_code=400, detail="Invalid OTP code")
+    
+    # Check if OTP is expired
+    if datetime.now(timezone.utc) > reset_token.expires_at:
+        reset_token.used = True
+        db.commit()
+        raise HTTPException(status_code=400, detail="OTP has expired. Please request a new one.")
+    
+    # Get the user
+    db_user = db.query(UserDB).filter(UserDB.id == reset_token.user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Update the password
+    db_user.hashed_password = hash_password(request.new_password)
+    
+    # Mark OTP as used
+    reset_token.used = True
+    
+    db.commit()
+    
+    return {"message": "Password has been reset successfully"}
 
 @app.get("/market-insights-test")
 async def market_insights(db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):

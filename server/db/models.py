@@ -100,3 +100,15 @@ class LearningPath(Base):
     path_data = Column(String, nullable=False) # Stored as JSON string
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, sqlalchemy.ForeignKey("users.id"), nullable=False)
+    email = Column(String, nullable=False)  # Store email for verification
+    otp_code = Column(String, nullable=False)  # 6-digit OTP
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
