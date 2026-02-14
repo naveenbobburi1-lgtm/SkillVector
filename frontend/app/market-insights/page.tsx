@@ -29,8 +29,8 @@ export default function MarketInsightsPage() {
                 setGapAnalysis(gapData);
                 setOutlook(outlookData);
             } catch (err: any) {
-                console.error(err);
-                setError(err.message || "Failed to load market insights");
+                console.error("Market insights fetch error:", err);
+                setError(err.message || "Failed to load market insights. Please ensure the backend server is running.");
             } finally {
                 setLoading(false);
             }
@@ -56,7 +56,13 @@ export default function MarketInsightsPage() {
                 <div className="max-w-md w-full glass-panel p-8 rounded-2xl border-error/20">
                     <span className="material-symbols-outlined text-5xl text-error mb-4">error_outline</span>
                     <h1 className="text-xl font-bold text-text-main mb-2">Unable to load insights</h1>
-                    <p className="text-text-muted mb-6">{error}</p>
+                    <p className="text-text-muted mb-4">{error}</p>
+                    {error.includes("server") && (
+                        <div className="mb-6 p-3 bg-warning/10 border border-warning/20 rounded-lg text-sm text-text-muted text-left">
+                            <p className="font-medium text-warning mb-1">💡 Tip:</p>
+                            <p>Make sure the backend server is running at <code className="text-primary">http://localhost:8000</code></p>
+                        </div>
+                    )}
                     <Link
                         href="/learning-path"
                         className="inline-flex items-center justify-center px-6 py-2.5 bg-surface-2 hover:bg-surface-3 text-text-main font-medium rounded-lg transition-colors"

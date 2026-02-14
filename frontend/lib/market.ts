@@ -22,33 +22,45 @@ export async function getMarketGapAnalysis(): Promise<MarketGapAnalysis> {
     const token = getToken();
     if (!token) throw new Error("No token found");
 
-    const response = await fetch(`${API_BASE_URL}/market-insights-test`, {
-        headers: {
-            Authorization: `Bearer ${token}`,
-        },
-    });
+    try {
+        const response = await fetch(`${API_BASE_URL}/market-insights-test`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
 
-    if (!response.ok) {
-        throw new Error("Failed to fetch market gap analysis");
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Server returned ${response.status}`);
+        }
+
+        return response.json();
+    } catch (error: any) {
+        console.error("Market gap analysis error:", error);
+        throw new Error(error.message || "Failed to fetch market gap analysis. Please ensure the server is running.");
     }
-
-    return response.json();
 }
 
 export async function getMarketOutlook(): Promise<MarketOutlook> {
     const token = getToken();
     if (!token) throw new Error("No token found");
 
-    const response = await fetch(`${API_BASE_URL}/profile-insights`, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${token}`,
-        },
-    });
+    try {
+        const response = await fetch(`${API_BASE_URL}/profile-insights`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
 
-    if (!response.ok) {
-        throw new Error("Failed to fetch market outlook");
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Server returned ${response.status}`);
+        }
+
+        return response.json();
+    } catch (error: any) {
+        console.error("Market outlook error:", error);
+        throw new Error(error.message || "Failed to fetch market outlook. Please ensure the server is running.");
     }
-
-    return response.json();
 }

@@ -5,15 +5,27 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LearningPathResponse } from "./types";
 import { API_BASE_URL, getToken, removeToken } from "@/lib/auth";
-import UserMenu from "@/components/UserMenu";
 import Navbar from "@/components/Navbar";
+import TestModal from "@/components/TestModal";
+import TestResultModal from "@/components/TestResultModal";
 
 export default function LearningPathPage() {
   const router = useRouter();
   const [data, setData] = useState<LearningPathResponse | null>(null);
   const [profile, setProfile] = useState<any>(null);
+  const [progress, setProgress] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Test modal state
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [currentTestPhase, setCurrentTestPhase] = useState<number | null>(null);
+  const [testQuestions, setTestQuestions] = useState<any[]>([]);
+  const [testLoading, setTestLoading] = useState(false);
+  
+  // Test result state
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [testResult, setTestResult] = useState<any>(null);
 
   useEffect(() => {
     async function init() {
@@ -39,6 +51,15 @@ export default function LearningPathPage() {
         const pathJson = await pathRes.json();
         setData(pathJson);
 
+        // Fetch Phase Progress
+        const progressRes = await fetch(`${API_BASE_URL}/phase-progress`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (progressRes.ok) {
+          const progressData = await progressRes.json();
+          setProgress(progressData.progress || []);
+        }
+
         // Fetch Profile for Nav
         const profileRes = await fetch(`${API_BASE_URL}/user-profile`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -56,6 +77,104 @@ export default function LearningPathPage() {
     }
     init();
   }, []);
+
+  const handleTakeTest = async (phaseIndex: number) => {
+    setTestLoading(true);
+    setCurrentTestPhase(phaseIndex);
+    const token = getToken();
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/phase-test/${phaseIndex}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to load test");
+      }
+
+      const testData = await res.json();
+      console.log("Test data loaded:", testData.questions?.length, "questions");
+      
+      if (!testData.questions || testData.questions.length === 0) {
+        throw new Error("No test questions received");
+      }
+      
+      setTestQuestions(testData.questions);
+      setShowTestModal(true);
+    } catch (err: any) {
+      console.error("Test loading error:", err);
+      alert(err.message || "Failed to load test");
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
+  const handleSubmitTest = async (answers: number[]) => {
+    if (currentTestPhase === null) return;
+
+    const token = getToken();
+    try {
+      const res = await fetch(`${API_BASE_URL}/submit-test`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          phase_index: currentTestPhase,
+          answers,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to submit test");
+      }
+
+      const result = await res.json();
+      console.log("Test result received:", result);
+      
+      setTestResult(result);
+      setShowTestModal(false);
+      
+      // Small delay to ensure modal transition
+      setTimeout(() => {
+        setShowResultModal(true);
+      }, 100);
+
+      // Refresh progress
+      const progressRes = await fetch(`${API_BASE_URL}/phase-progress`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (progressRes.ok) {
+        const progressData = await progressRes.json();
+        setProgress(progressData.progress || []);
+      }
+    } catch (err: any) {
+      console.error("Test submission error:", err);
+      alert(err.message || "Failed to submit test");
+    }
+  };
+
+  const getPhaseProgress = (index: number) => {
+    const foundProgress = progress.find((p) => p.phase_index === index);
+    
+    // If no progress data exists, unlock Phase 1 by default
+    if (!foundProgress && progress.length === 0 && index === 0) {
+      return {
+        is_unlocked: true,
+        is_completed: false,
+        test_passed: false,
+        best_score: 0,
+      };
+    }
+    
+    return foundProgress || {
+      is_unlocked: false,
+      is_completed: false,
+      test_passed: false,
+      best_score: 0,
+    };
+  };
 
   if (loading) {
     return (
@@ -87,15 +206,11 @@ export default function LearningPathPage() {
 
   if (!data) return null;
 
-
-  // ... existing code ...
-
   return (
     <div className="min-h-screen bg-background text-text-main font-sans selection:bg-primary selection:text-white">
       <Navbar activePage="learning-path" />
 
       <main className="max-w-7xl mx-auto p-4 lg:p-8 space-y-10">
-
         {/* Hero Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
@@ -138,137 +253,220 @@ export default function LearningPathPage() {
 
         {/* Roadmap */}
         <div className="relative border-l-2 border-border ml-4 md:ml-10 space-y-12 pb-12">
+          {data.learning_path.map((phase: any, index: number) => {
+            const phaseProgress = getPhaseProgress(index);
+            const isLocked = !phaseProgress.is_unlocked;
+            const isCompleted = phaseProgress.is_completed;
 
-          {data.learning_path.map((stage, index) => (
-            <div key={index} className="relative pl-8 md:pl-12">
-              {/* Node */}
-              <div className={`absolute -left-[9px] top-0 h-4 w-4 rounded-full border-4 border-background ${index === 0 ? 'bg-primary shadow-[0_0_0_4px_rgba(124,58,237,0.2)]' : 'bg-surface-2'}`}></div>
+            return (
+              <div key={index} className={`relative pl-8 md:pl-12 ${isLocked ? "opacity-60" : ""}`}>
+                {/* Node */}
+                <div className={`absolute -left-[9px] top-0 h-4 w-4 rounded-full border-4 border-background ${
+                  isCompleted ? "bg-success shadow-[0_0_0_4px_rgba(34,197,94,0.2)]" :
+                  !isLocked ? "bg-primary shadow-[0_0_0_4px_rgba(124,58,237,0.2)]" :
+                  "bg-surface-2"
+                }`}></div>
 
-              {/* Content Grid */}
-              <div className="flex flex-col gap-6">
-                {/* Header */}
-                <div>
-                  <h2 className="text-2xl font-bold text-text-main flex items-center gap-3">
-                    Phase {index + 1}: {stage.stage}
-                    {index === 0 && <span className="px-2 py-0.5 rounded text-xs font-medium bg-primary text-white">IN PROGRESS</span>}
-                  </h2>
-                  <div className="flex flex-wrap gap-4 text-sm text-text-muted mt-2">
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-lg">schedule</span>
-                      {stage.duration_months} Months
+                {/* Content Grid */}
+                <div className="flex flex-col gap-6">
+                  {/* Header */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 flex-wrap mb-2">
+                        <h2 className="text-2xl font-bold text-text-main">
+                          Phase {index + 1}: {phase.phase || phase.stage}
+                        </h2>
+                        {isLocked && <span className="px-2 py-1 rounded text-xs font-bold bg-surface-2 text-text-dim flex items-center gap-1 flex-shrink-0">
+                          <span className="material-symbols-outlined text-sm">lock</span>
+                          LOCKED
+                        </span>}
+                        {isCompleted && <span className="px-2 py-1 rounded text-xs font-bold bg-success/10 text-success flex items-center gap-1 flex-shrink-0">
+                          <span className="material-symbols-outlined text-sm">check_circle</span>
+                          COMPLETED
+                        </span>}
+                        {!isLocked && !isCompleted && <span className="px-2 py-1 rounded text-xs font-bold bg-primary text-white flex-shrink-0">IN PROGRESS</span>}
+                      </div>
+                      <div className="flex flex-wrap gap-4 text-sm text-text-muted">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-lg">schedule</span>
+                          {phase.duration_weeks || phase.duration_months * 4} Weeks
+                        </div>
+                        {phaseProgress.best_score > 0 && (
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-lg text-warning">trophy</span>
+                            <span>Best Score: {phaseProgress.best_score}%</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Test Button - Made more prominent and always visible */}
+                    {!isLocked && (
+                      <button
+                        onClick={() => handleTakeTest(index)}
+                        disabled={testLoading}
+                        className={`px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap flex-shrink-0 relative z-20 ${
+                          isCompleted
+                            ? "bg-surface-2 hover:bg-surface-3 text-text-main border-2 border-border"
+                            : "bg-warning hover:bg-warning/90 text-white shadow-lg hover:shadow-2xl"
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        <span className="material-symbols-outlined text-xl text-black">quiz</span>
+                        <span className="text-black">{testLoading ? "Loading..." : (isCompleted ? "Retake Test" : "Take Test")}</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Why this phase */}
+                  <div className="bg-surface-2/50 border border-border rounded-xl p-4">
+                    <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-2 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-lg text-primary">psychology</span>
+                      Why this phase?
+                    </h3>
+                    <p className="text-text-main text-sm leading-relaxed italic">
+                      "{phase.why_this_phase || phase.why_this_module || "This phase is essential for building the foundational skills required for your target role."}"
+                    </p>
+                  </div>
+
+                  {/* Weekly Breakdown */}
+                  {phase.weekly_breakdown && phase.weekly_breakdown.length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider">Week-by-Week Breakdown</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {phase.weekly_breakdown.map((week: any, wIndex: number) => (
+                          <div key={wIndex} className="bg-surface-1 border border-border rounded-xl p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                <span className="text-sm font-bold text-primary">{week.week}</span>
+                              </div>
+                              <h4 className="text-sm font-bold text-text-main">{week.focus}</h4>
+                            </div>
+                            <div className="space-y-2">
+                              <div>
+                                <p className="text-xs font-bold text-text-dim uppercase tracking-wider mb-1">Objectives</p>
+                                <ul className="space-y-1">
+                                  {week.learning_objectives?.slice(0, 2).map((obj: string, oIndex: number) => (
+                                    <li key={oIndex} className="text-xs text-text-muted flex items-start gap-1">
+                                      <span className="material-symbols-outlined text-xs text-primary mt-0.5">check</span>
+                                      <span>{obj}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Topics & Skills Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-3">Key Topics</h3>
+                      <ul className="space-y-2">
+                        {phase.topics?.map((topic: string, tIndex: number) => (
+                          <li key={tIndex} className="flex items-start gap-2 text-sm text-text-muted">
+                            <span className="material-symbols-outlined text-base text-primary mt-0.5">check_circle</span>
+                            <span>{topic}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-3">Skills Acquired</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {phase.skills.map((skill: string, sIndex: number) => (
+                          <span key={sIndex} className="px-3 py-1 rounded-full bg-surface-2 border border-border text-xs font-medium text-text-muted hover:text-text-main hover:border-primary/50 transition-colors cursor-default">
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Why this module */}
-                <div className="bg-surface-2/50 border border-border rounded-xl p-4">
-                  <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-2 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-lg text-primary">psychology</span>
-                    Why this module?
-                  </h3>
-                  <p className="text-text-main text-sm leading-relaxed italic">
-                    "{stage.why_this_module || "This module is essential for building the foundational skills required for your target role."}"
-                  </p>
-                </div>
-
-                {/* Topics & Skills Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Topics */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-3">Key Topics</h3>
-                    <ul className="space-y-2">
-                      {stage.topics?.map((topic, tIndex) => (
-                        <li key={tIndex} className="flex items-start gap-2 text-sm text-text-muted">
-                          <span className="material-symbols-outlined text-base text-primary mt-0.5">check_circle</span>
-                          <span>{topic}</span>
-                        </li>
-                      )) || (
-                          <li className="text-sm text-text-muted italic">Topics loading...</li>
-                        )}
-                    </ul>
+                  {/* Resources Section */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-2">Curated Resources</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {phase.resources.map((resource: any, rIndex: number) => (
+                        <a key={rIndex} href={resource.link} target="_blank" rel="noopener noreferrer" className="group flex flex-col p-4 bg-surface-1 border border-border rounded-xl hover:border-primary/50 transition-all">
+                          <div className="flex justify-between items-start mb-2">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              resource.type === 'Course' ? 'bg-blue-500/10 text-blue-500' :
+                              resource.type === 'Article' ? 'bg-green-500/10 text-green-500' :
+                              'bg-amber-500/10 text-amber-500'
+                            }`}>{resource.type}</span>
+                            <span className="material-symbols-outlined text-sm text-text-muted group-hover:text-primary transition-colors">open_in_new</span>
+                          </div>
+                          <h4 className="text-sm font-bold text-text-main mb-1 line-clamp-2 group-hover:text-primary transition-colors">{resource.title}</h4>
+                          <p className="text-xs text-text-muted mt-auto pt-2 border-t border-border/50">{resource.platform}</p>
+                        </a>
+                      ))}
+                    </div>
                   </div>
 
-                  {/* Skills Tags */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-3">Skills Acquired</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {stage.skills.map((skill, sIndex) => (
-                        <span key={sIndex} className="px-3 py-1 rounded-full bg-surface-2 border border-border text-xs font-medium text-text-muted hover:text-text-main hover:border-primary/50 transition-colors cursor-default">
-                          {skill}
-                        </span>
+                  {/* Projects Section */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-2">Hands-on Projects</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {phase.projects.map((project: any, pIndex: number) => (
+                        <div key={pIndex} className="bg-surface-1 border border-border rounded-xl p-5">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className="h-8 w-8 rounded-lg bg-surface-2 flex items-center justify-center text-success">
+                                <span className="material-symbols-outlined text-lg">code_blocks</span>
+                              </div>
+                              <h4 className="text-sm font-bold text-text-main">{project.title}</h4>
+                            </div>
+                            {project.difficulty && (
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                project.difficulty === 'Easy' ? 'bg-success/10 text-success' :
+                                project.difficulty === 'Medium' ? 'bg-warning/10 text-warning' :
+                                'bg-error/10 text-error'
+                              }`}>{project.difficulty}</span>
+                            )}
+                          </div>
+                          <p className="text-sm text-text-muted">{project.description}</p>
+                        </div>
                       ))}
                     </div>
                   </div>
                 </div>
-
-                {/* Resources Section */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-2">Curated Resources</h3>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {/* Courses */}
-                    {stage.resources.filter(r => r.type === 'Course').map((resource, rIndex) => (
-                      <a key={`course-${rIndex}`} href={resource.link} target="_blank" rel="noopener noreferrer" className="group flex flex-col p-4 bg-surface-1 border border-border rounded-xl hover:border-primary/50 transition-all">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-500 uppercase">Course</span>
-                          <span className="material-symbols-outlined text-sm text-text-muted group-hover:text-primary transition-colors">open_in_new</span>
-                        </div>
-                        <h4 className="text-sm font-bold text-text-main mb-1 line-clamp-2 group-hover:text-primary transition-colors">{resource.title}</h4>
-                        <p className="text-xs text-text-muted mt-auto pt-2 border-t border-border/50">{resource.platform}</p>
-                      </a>
-                    ))}
-
-                    {/* Articles */}
-                    {stage.resources.filter(r => r.type === 'Article').map((resource, rIndex) => (
-                      <a key={`article-${rIndex}`} href={resource.link} target="_blank" rel="noopener noreferrer" className="group flex flex-col p-4 bg-surface-1 border border-border rounded-xl hover:border-primary/50 transition-all">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/10 text-green-500 uppercase">Article</span>
-                          <span className="material-symbols-outlined text-sm text-text-muted group-hover:text-primary transition-colors">open_in_new</span>
-                        </div>
-                        <h4 className="text-sm font-bold text-text-main mb-1 line-clamp-2 group-hover:text-primary transition-colors">{resource.title}</h4>
-                        <p className="text-xs text-text-muted mt-auto pt-2 border-t border-border/50">{resource.platform}</p>
-                      </a>
-                    ))}
-
-                    {/* Books */}
-                    {stage.resources.filter(r => r.type === 'Book').map((resource, rIndex) => (
-                      <a key={`book-${rIndex}`} href={resource.link} target="_blank" rel="noopener noreferrer" className="group flex flex-col p-4 bg-surface-1 border border-border rounded-xl hover:border-primary/50 transition-all">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 uppercase">Book</span>
-                          <span className="material-symbols-outlined text-sm text-text-muted group-hover:text-primary transition-colors">open_in_new</span>
-                        </div>
-                        <h4 className="text-sm font-bold text-text-main mb-1 line-clamp-2 group-hover:text-primary transition-colors">{resource.title}</h4>
-                        <p className="text-xs text-text-muted mt-auto pt-2 border-t border-border/50">{resource.platform}</p>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Projects Section */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-2">Hands-on Projects</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {stage.projects.map((project, pIndex) => (
-                      <div key={pIndex} className="bg-surface-1 border border-border rounded-xl p-5">
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="h-8 w-8 rounded-lg bg-surface-2 flex items-center justify-center text-success">
-                            <span className="material-symbols-outlined text-lg">code_blocks</span>
-                          </div>
-                          <h4 className="text-sm font-bold text-text-main">{project.title}</h4>
-                        </div>
-                        <p className="text-sm text-text-muted line-clamp-3">{project.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
               </div>
-            </div>
-          ))}
-
+            );
+          })}
         </div>
-
       </main>
+
+      {/* Test Modal */}
+      {showTestModal && currentTestPhase !== null && (
+        <TestModal
+          isOpen={showTestModal}
+          onClose={() => setShowTestModal(false)}
+          phaseIndex={currentTestPhase}
+          phaseName={data.learning_path[currentTestPhase]?.stage || `Phase ${currentTestPhase + 1}`}
+          questions={testQuestions}
+          onSubmit={handleSubmitTest}
+        />
+      )}
+
+      {/* Test Result Modal */}
+      {showResultModal && testResult && (
+        <TestResultModal
+          isOpen={showResultModal}
+          onClose={() => {
+            setShowResultModal(false);
+            setTestResult(null);
+          }}
+          score={testResult.score}
+          passed={testResult.passed}
+          correctCount={testResult.correct_count}
+          totalQuestions={testResult.total_questions}
+          results={testResult.results}
+          nextPhaseUnlocked={testResult.next_phase_unlocked}
+        />
+      )}
     </div>
   );
 }

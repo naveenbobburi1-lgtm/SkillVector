@@ -1,6 +1,14 @@
 def generate_market_insights(user_skills, market_skills):
     user_skills_lower = set(s.lower() for s in user_skills)
 
+    # Handle empty market_skills to avoid division by zero
+    if not market_skills or len(market_skills) == 0:
+        return {
+            "market_required_skills": [],
+            "missing_skills": [],
+            "skill_coverage_percent": 0
+        }
+
     missing_skills = [
         skill for skill in market_skills
         if skill.lower() not in user_skills_lower

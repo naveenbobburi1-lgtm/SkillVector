@@ -19,7 +19,11 @@ export default function InsightsCard() {
     useEffect(() => {
         async function fetchInsights() {
             const token = getToken();
-            if (!token) return;
+            if (!token) {
+                setError(true);
+                setLoading(false);
+                return;
+            }
 
             try {
                 const res = await fetch(`${API_BASE_URL}/profile-insights`, {
@@ -32,11 +36,22 @@ export default function InsightsCard() {
 
                 if (res.ok) {
                     const json = await res.json();
-                    setData(json);
+                    console.log("Profile insights received:", json);
+                    
+                    // Validate that we have the required fields
+                    if (json && json.trending_skills && json.market_outlook) {
+                        setData(json);
+                        setError(false);
+                    } else {
+                        console.warn("Incomplete insights data:", json);
+                        setError(true);
+                    }
                 } else {
+                    console.error("Profile insights response not ok:", res.status);
                     setError(true);
                 }
             } catch (e) {
+                console.error("Error fetching profile insights:", e);
                 setError(true);
             } finally {
                 setLoading(false);

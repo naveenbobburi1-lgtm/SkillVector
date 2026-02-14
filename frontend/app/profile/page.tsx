@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getUserProfile, API_BASE_URL, getToken } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
+import AddSkillModal from "@/components/AddSkillModal";
 
 // New Components
 import DashboardLayout from "@/components/profile/DashboardLayout";
@@ -19,9 +20,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<any>(null);
   const [analysis, setAnalysis] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-
-  // Modal / Interaction State (Mocking simple alerts for now, full modals can be added later)
-  const [showAddSkill, setShowAddSkill] = useState(false);
+  const [showAddSkillModal, setShowAddSkillModal] = useState(false);
 
   useEffect(() => {
     async function fetchProfile() {
@@ -39,17 +38,24 @@ export default function ProfilePage() {
         }
         setProfile(data);
 
-        // Fetch Dynamic Analysis
-        const analysisRes = await fetch(`${API_BASE_URL}/profile/analysis`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (analysisRes.ok) {
-          const analysisData = await analysisRes.json();
-          setAnalysis(analysisData);
+        // Fetch Dynamic Analysis (non-blocking - page works without it)
+        try {
+          const analysisRes = await fetch(`${API_BASE_URL}/profile/analysis`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (analysisRes.ok) {
+            const analysisData = await analysisRes.json();
+            setAnalysis(analysisData);
+          } else {
+            console.warn("Analysis endpoint returned error:", analysisRes.status);
+          }
+        } catch (analysisErr) {
+          console.error("Failed to fetch analysis (continuing without it):", analysisErr);
+          // Page continues to work without analysis data
         }
 
       } catch (err) {
-        console.error(err);
+        console.error("Profile fetch error:", err);
         router.push("/login");
       } finally {
         setLoading(false);
@@ -58,23 +64,20 @@ export default function ProfilePage() {
     fetchProfile();
   }, [router]);
 
-  const handleAddSkill = async () => {
-    // For this iteration, we just redirect to setup or show a placeholder
-    // In a real 'ActionCommand' flow, this would open a modal
-    const skill = prompt("Enter a new skill vector to add:");
-    if (skill && skill.trim()) {
-      const token = getToken();
-      try {
-        const res = await fetch(`${API_BASE_URL}/add-skill`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ skill: skill.trim() }),
-        });
-        if (res.ok) {
-          const updated = await res.json();
-          setProfile((prev: any) => ({ ...prev, skills: updated.skills }));
-        }
-      } catch (e) { console.error(e); }
+  const handleAddSkill = async (skill: string) => {
+    const token = getToken();
+    try {
+      const res = await fetch(`${API_BASE_URL}/add-skill`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ skill }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setProfile((prev: any) => ({ ...prev, skills: updated.skills }));
+      }
+    } catch (e) { 
+      console.error(e); 
     }
   };
 
@@ -188,9 +191,15 @@ export default function ProfilePage() {
       </main>
 
       <ActionCommand
-        onAddSkill={handleAddSkill}
+        onAddSkill={() => setShowAddSkillModal(true)}
         onEditParams={handleEditParams}
         onGeneratePath={handleGeneratePath}
+      />
+
+      <AddSkillModal
+        isOpen={showAddSkillModal}
+        onClose={() => setShowAddSkillModal(false)}
+        onSubmit={handleAddSkill}
       />
 
     </div>

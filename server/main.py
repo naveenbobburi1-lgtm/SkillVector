@@ -1,11 +1,12 @@
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from db.database import get_db,init_db
-from db.models import UserDB, UserProfile, ProfileDB, SkillDB, CertificationDB, CareerGoalDB, LearningPath, PasswordResetToken
+from db.models import UserDB, UserProfile, ProfileDB, SkillDB, CertificationDB, CareerGoalDB, LearningPath, PasswordResetToken, PhaseProgress, TestAttempt
 import schemas.UserSchemas as schemas
 import schemas.ProfileSchemas as profile_schemas
 from rag.retriever import clean_llm_json
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -17,7 +18,7 @@ from rag.query_planner import generate_search_queries
 from rag.batch_retriever import batch_retrieve
 from market.load_onet import load_onet_data
 from market.role_matcher import match_role_to_soc
-from market.skill_extractor import extract_top_skills
+from market.skill_extractor import extract_top_skills, extract_skills_with_llm
 from market.insights_engine import generate_market_insights
 import market.role_matcher as role_matcher
 import market.insights_engine as insights_engine
@@ -199,32 +200,57 @@ async def reset_password(request: schemas.ResetPasswordRequest, db: Session = De
 
 @app.get("/market-insights-test")
 async def market_insights(db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
-    if "occupations" not in ONET_CACHE:
-        raise HTTPException(status_code=500, detail="O*NET data not loaded")
+    try:
+        if "occupations" not in ONET_CACHE:
+            raise HTTPException(status_code=500, detail="O*NET data not loaded")
 
-    occupations_df = ONET_CACHE["occupations"]
-    skills_df = ONET_CACHE["skills"]
+        occupations_df = ONET_CACHE["occupations"]
+        skills_df = ONET_CACHE["skills"]
 
-    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
-    if not profile:
-        raise HTTPException(status_code=400, detail="Profile not found")
+        profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+        if not profile:
+            raise HTTPException(status_code=400, detail="Profile not found")
 
-    user_role = profile.desired_role
-    user_skills = json.loads(profile.skills) if profile.skills else []
+        user_role = profile.desired_role
+        user_skills = json.loads(profile.skills) if profile.skills else []
 
-    match = match_role_to_soc(user_role, occupations_df)
-    if not match:
-        raise HTTPException(status_code=404, detail="Role not found in O*NET")
+        # Try to match role to O*NET SOC code
+        match = match_role_to_soc(user_role, occupations_df)
+        
+        if match:
+            # O*NET match found - use traditional data
+            soc_code, canonical_role = match
+            market_skills = extract_top_skills(soc_code, skills_df)
+        else:
+            # No O*NET match - use LLM fallback for modern/non-traditional roles
+            print(f"No O*NET match for '{user_role}', using LLM fallback")
+            soc_code = "99-9999.00"  # Generic code for non-O*NET roles
+            canonical_role = user_role  # Use user's original role name
+            market_skills = extract_skills_with_llm(user_role, top_n=15)
+        
+        # Ensure market_skills is not empty
+        if not market_skills:
+            market_skills = [
+                "Communication", "Problem Solving", "Critical Thinking",
+                "Teamwork", "Leadership", "Technical Proficiency",
+                "Data Analysis", "Project Management"
+            ]
+        
+        insights = generate_market_insights(user_skills, market_skills)
 
-    soc_code, canonical_role = match
-    market_skills = extract_top_skills(soc_code, skills_df)
-    insights = generate_market_insights(user_skills, market_skills)
-
-    return {
-        "role": canonical_role,
-        "soc_code": soc_code,
-        "insights": insights
-    }
+        return {
+            "role": canonical_role,
+            "soc_code": soc_code,
+            "insights": insights
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in market insights: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to generate market insights: {str(e)}")
 
 @app.get("/generate-path")
 async def generate_learning_path(
@@ -239,7 +265,20 @@ async def generate_learning_path(
     # Return cached path if exists
     existing_path = db.query(LearningPath).filter(LearningPath.user_id == current_user.id).first()
     if existing_path:
-        return json.loads(existing_path.path_data)
+        path_json = json.loads(existing_path.path_data)
+        
+        # Ensure phase progress is initialized (even for cached paths)
+        existing_progress = db.query(PhaseProgress).filter(
+            PhaseProgress.user_id == current_user.id
+        ).count()
+        
+        if existing_progress == 0:
+            from utils.test_generator import initialize_phase_progress
+            num_phases = len(path_json.get("learning_path", []))
+            if num_phases > 0:
+                initialize_phase_progress(current_user.id, num_phases, db)
+        
+        return path_json
 
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
@@ -309,15 +348,22 @@ OUTPUT RULES (STRICT):
   }},
   "learning_path": [
     {{
-      "stage": string,
-      "duration_months": number,
-      "why_this_module": string,
+      "phase": string,
+      "duration_weeks": number,
+      "why_this_phase": string,
       "topics": [string],
-      "focus": [string],
       "skills": [string],
+      "weekly_breakdown": [
+        {{
+          "week": number,
+          "focus": string,
+          "learning_objectives": [string],
+          "practice_tasks": [string]
+        }}
+      ],
       "resources": [
         {{
-          "type": "Course" | "Article" | "Book",
+          "type": "Course" | "Article" | "Book" | "Video",
           "title": string,
           "platform": string,
           "link": string
@@ -326,7 +372,8 @@ OUTPUT RULES (STRICT):
       "projects": [
         {{
           "title": string,
-          "description": string
+          "description": string,
+          "difficulty": "Easy" | "Medium" | "Hard"
         }}
       ]
     }}
@@ -334,12 +381,14 @@ OUTPUT RULES (STRICT):
 }}
 
 CRITICAL CONTENT REQUIREMENTS:
-1. "why_this_module": Explain why this module is important and correctly placed.
-2. "topics": 5–8 detailed sub-topics per module.
-3. "resources": EXACTLY 5 per module:
-   - 2 Courses (Coursera / Udemy / edX / YouTube)
-   - 2 Articles or Blogs
-   - 1 Book
+1. "why_this_phase": Explain why this phase is important and correctly placed.
+2. "topics": 5–8 detailed sub-topics per phase.
+3. "weekly_breakdown": Break down each phase into weekly focused goals (duration_weeks number of weeks). Each week should have specific learning objectives and practice tasks.
+4. "resources": EXACTLY 6-8 per phase:
+   - 2-3 Courses (Coursera / Udemy / edX / YouTube)
+   - 2-3 Articles or Blogs
+   - 1-2 Books
+5. "projects": MINIMUM 3-5 hands-on projects per phase with varying difficulty levels (Easy/Medium/Hard)
 """
 
     response = client.chat.completions.create(
@@ -360,6 +409,13 @@ CRITICAL CONTENT REQUIREMENTS:
         db.add(new_path)
         db.commit()
 
+        # Initialize phase progress tracking
+        num_phases = len(path_json.get("learning_path", []))
+        if num_phases > 0:
+            # Import here to avoid circular imports
+            from utils.test_generator import initialize_phase_progress
+            initialize_phase_progress(current_user.id, num_phases, db)
+
         return path_json
 
     except json.JSONDecodeError:
@@ -367,6 +423,214 @@ CRITICAL CONTENT REQUIREMENTS:
             "error": "Model returned invalid JSON",
             "raw_output": content
         }
+
+
+@app.get("/phase-progress")
+async def get_phase_progress(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """Get progress tracking for all phases"""
+    progress = db.query(PhaseProgress).filter(
+        PhaseProgress.user_id == current_user.id
+    ).order_by(PhaseProgress.phase_index).all()
+    
+    return {
+        "progress": [
+            {
+                "phase_index": p.phase_index,
+                "is_unlocked": p.is_unlocked,
+                "is_completed": p.is_completed,
+                "test_passed": p.test_passed,
+                "best_score": p.best_score
+            }
+            for p in progress
+        ]
+    }
+
+
+@app.get("/phase-test/{phase_index}")
+async def get_phase_test(
+    phase_index: int,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """Generate MCQ test for a specific phase"""
+    # Check if phase is unlocked
+    progress = db.query(PhaseProgress).filter(
+        PhaseProgress.user_id == current_user.id,
+        PhaseProgress.phase_index == phase_index
+    ).first()
+    
+    if not progress or not progress.is_unlocked:
+        raise HTTPException(status_code=403, detail="Phase not unlocked yet")
+    
+    # Get learning path
+    path = db.query(LearningPath).filter(LearningPath.user_id == current_user.id).first()
+    if not path:
+        raise HTTPException(status_code=404, detail="Learning path not found")
+    
+    path_data = json.loads(path.path_data)
+    learning_path = path_data.get("learning_path", [])
+    
+    if phase_index >= len(learning_path):
+        raise HTTPException(status_code=404, detail="Phase not found")
+    
+    phase_data = learning_path[phase_index]
+    
+    # Generate MCQs
+    from utils.test_generator import generate_phase_mcqs
+    questions = generate_phase_mcqs(phase_data, phase_index)
+    
+    # Don't send correct answers to frontend
+    questions_without_answers = [
+        {
+            "question": q["question"],
+            "options": q["options"],
+            "difficulty": q.get("difficulty", "Medium")
+        }
+        for q in questions
+    ]
+    
+    return {
+        "phase_index": phase_index,
+        "phase_name": phase_data.get("phase", f"Phase {phase_index + 1}"),
+        "questions": questions_without_answers,
+        "total_questions": len(questions),
+        "passing_score": 70
+    }
+
+
+@app.post("/submit-test")
+async def submit_test(
+    test_data: dict,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """Submit test answers and calculate score"""
+    phase_index = test_data.get("phase_index")
+    user_answers = test_data.get("answers", [])  # List of indices
+    
+    # Get the correct answers
+    path = db.query(LearningPath).filter(LearningPath.user_id == current_user.id).first()
+    if not path:
+        raise HTTPException(status_code=404, detail="Learning path not found")
+    
+    path_data = json.loads(path.path_data)
+    learning_path = path_data.get("learning_path", [])
+    
+    if phase_index >= len(learning_path):
+        raise HTTPException(status_code=404, detail="Phase not found")
+    
+    phase_data = learning_path[phase_index]
+    
+    # Generate same MCQs to get correct answers
+    from utils.test_generator import generate_phase_mcqs
+    questions = generate_phase_mcqs(phase_data, phase_index)
+    
+    if not questions or len(questions) == 0:
+        raise HTTPException(status_code=500, detail="Failed to generate test questions")
+    
+    # Calculate score
+    correct_count = 0
+    for i, user_answer in enumerate(user_answers):
+        if i < len(questions) and user_answer == questions[i]["correct_answer"]:
+            correct_count += 1
+    
+    score = int((correct_count / len(questions)) * 100) if len(questions) > 0 else 0
+    passed = score >= 70
+    
+    # Save attempt
+    attempt = TestAttempt(
+        user_id=current_user.id,
+        phase_index=phase_index,
+        score=score,
+        answers=json.dumps(user_answers),
+        passed=passed
+    )
+    db.add(attempt)
+    
+    # Update progress
+    progress = db.query(PhaseProgress).filter(
+        PhaseProgress.user_id == current_user.id,
+        PhaseProgress.phase_index == phase_index
+    ).first()
+    
+    if progress:
+        if score > progress.best_score:
+            progress.best_score = score
+        
+        if passed and not progress.test_passed:
+            progress.test_passed = True
+            progress.is_completed = True
+            progress.updated_at = func.now()
+            
+            # Unlock next phase
+            next_progress = db.query(PhaseProgress).filter(
+                PhaseProgress.user_id == current_user.id,
+                PhaseProgress.phase_index == phase_index + 1
+            ).first()
+            
+            if next_progress:
+                next_progress.is_unlocked = True
+    
+    db.commit()
+    
+    # Return results with explanations
+    results = []
+    for i, q in enumerate(questions):
+        user_ans = user_answers[i] if i < len(user_answers) else -1
+        is_correct = user_ans == q["correct_answer"]
+        results.append({
+            "question": q["question"],
+            "user_answer": user_ans,
+            "correct_answer": q["correct_answer"],
+            "is_correct": is_correct,
+            "explanation": q.get("explanation", "")
+        })
+    
+    return {
+        "score": score,
+        "passed": passed,
+        "correct_count": correct_count,
+        "total_questions": len(questions),
+        "results": results,
+        "next_phase_unlocked": passed
+    }
+
+
+@app.post("/add-skill-and-regenerate-path")
+async def add_skill_and_regenerate_path(
+    skill_data: dict,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """Add a new skill to profile and regenerate learning path"""
+    skill = skill_data.get("skill", "").strip()
+    
+    if not skill:
+        raise HTTPException(status_code=400, detail="Skill name required")
+    
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    if not profile:
+        raise HTTPException(status_code=400, detail="Profile not found")
+    
+    # Add skill to profile
+    current_skills = json.loads(profile.skills) if profile.skills else []
+    if skill.lower() not in [s.lower() for s in current_skills]:
+        current_skills.append(skill)
+        profile.skills = json.dumps(current_skills)
+        db.commit()
+    
+    # Delete existing learning path to force regeneration
+    db.query(LearningPath).filter(LearningPath.user_id == current_user.id).delete()
+    db.commit()
+    
+    return {
+        "message": "Skill added and path regeneration triggered",
+        "skills": current_skills,
+        "regenerate_path": True
+    }
 
 
 @app.get("/user-profile")
@@ -412,85 +676,106 @@ async def profile_analysis(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
-    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
-    if not profile or not profile.desired_role:
-        return {"status": "incomplete", "message": "Profile or Target Role missing"}
+    try:
+        profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+        if not profile or not profile.desired_role:
+            return {"status": "incomplete", "message": "Profile or Target Role missing"}
 
-    # Load Data 
-    if "occupations" not in ONET_CACHE:
-         occupations, skills_df = load_onet_data()
-         ONET_CACHE["occupations"] = occupations
-         ONET_CACHE["skills"] = skills_df
-    else:
-         occupations = ONET_CACHE["occupations"]
-         skills_df = ONET_CACHE["skills"]
-    
-    # 1. Match Role to SOC
-    match = role_matcher.match_role_to_soc(profile.desired_role, occupations)
-    if not match:
-         # Fallback / Low score if no match
-         return {
-             "status": "no_match", 
-             "role": profile.desired_role,
-             "north_star": {"score": 20, "velocity": profile.learning_pace},
-             "radar": {"salary": 50, "demand": 50, "skill": 20, "growth": 50},
-             "gap_analysis": {"missing_skills": [], "market_skills": []}
-         }
-    
-    soc_code, soc_title = match
+        # Load Data 
+        if "occupations" not in ONET_CACHE:
+             occupations, skills_df = load_onet_data()
+             ONET_CACHE["occupations"] = occupations
+             ONET_CACHE["skills"] = skills_df
+        else:
+             occupations = ONET_CACHE["occupations"]
+             skills_df = ONET_CACHE["skills"]
+        
+        # 1. Match Role to SOC
+        match = role_matcher.match_role_to_soc(profile.desired_role, occupations)
+        
+        if match:
+            # O*NET match found - use traditional data
+            soc_code, soc_title = match
+            # 2. Get Market Skills for SOC
+            relevant_skills = skills_df[skills_df["O*NET-SOC Code"] == soc_code]
+            top_market_skills = relevant_skills[relevant_skills["Scale ID"] == "IM"]
+            top_market_skills = top_market_skills.sort_values("Data Value", ascending=False).head(20)["Element Name"].tolist()
+        else:
+            # No O*NET match - use LLM fallback
+            print(f"No O*NET match for '{profile.desired_role}' in profile analysis, using LLM fallback")
+            soc_code = "99-9999.00"
+            soc_title = profile.desired_role
+            top_market_skills = extract_skills_with_llm(profile.desired_role, top_n=20)
 
-    # 2. Get Market Skills for SOC
-    # Filter skills_df where 'O*NET-SOC Code' == soc_code
-    relevant_skills = skills_df[skills_df["O*NET-SOC Code"] == soc_code]
-    # Filter for Importance ("IM") and high values
-    top_market_skills = relevant_skills[relevant_skills["Scale ID"] == "IM"]
-    top_market_skills = top_market_skills.sort_values("Data Value", ascending=False).head(20)["Element Name"].tolist()
+        # Ensure market_skills is not empty
+        if not top_market_skills:
+            top_market_skills = [
+                "Communication", "Problem Solving", "Critical Thinking",
+                "Teamwork", "Leadership", "Technical Proficiency",
+                "Data Analysis", "Project Management"
+            ]
 
-    # 3. Analyze Gap
-    user_skills = json.loads(profile.skills) if profile.skills else []
-    insights = insights_engine.generate_market_insights(user_skills, top_market_skills)
-    
-    # 4. LLM Market Analysis
-    market_outlook = insights_engine.analyze_role_outlook(profile.desired_role)
+        # 3. Analyze Gap
+        user_skills = json.loads(profile.skills) if profile.skills else []
+        insights = insights_engine.generate_market_insights(user_skills, top_market_skills)
+        
+        # 4. LLM Market Analysis (with fallback)
+        try:
+            market_outlook = insights_engine.analyze_role_outlook(profile.desired_role)
+        except Exception as llm_err:
+            print(f"LLM market outlook failed: {llm_err}")
+            market_outlook = {
+                "salary": 75,
+                "demand": 75,
+                "growth": 75,
+                "trending_skills": [],
+                "summary": "Market analysis currently unavailable"
+            }
 
-    # 5. Calculate Scores
-    coverage = insights["skill_coverage_percent"]
-    north_star_score = min(int(coverage * 1.2) + 20, 100) 
+        # 5. Calculate Scores
+        coverage = insights["skill_coverage_percent"]
+        north_star_score = min(int(coverage * 1.2) + 20, 100) 
 
-    # Dynamic Radar Dimensions from LLM
-    salary_match = market_outlook.get("salary", 75)
-    demand_match = market_outlook.get("demand", 75)
-    future_growth = market_outlook.get("growth", 75)
-    skill_match = coverage
+        # Dynamic Radar Dimensions from LLM
+        salary_match = market_outlook.get("salary", 75)
+        demand_match = market_outlook.get("demand", 75)
+        future_growth = market_outlook.get("growth", 75)
+        skill_match = coverage
 
-    # Combine O*NET skills with LLM Trending Skills
-    combined_missing = insights["missing_skills"]
-    if market_outlook.get("trending_skills"):
-         # Add top 3 trending skills to suggestions if not present
-         for trend in market_outlook["trending_skills"][:3]:
-             if trend.lower() not in [s.lower() for s in user_skills] and trend not in combined_missing:
-                 combined_missing.insert(0, trend + " (Trending)")
+        # Combine O*NET skills with LLM Trending Skills
+        combined_missing = insights["missing_skills"]
+        if market_outlook.get("trending_skills"):
+             # Add top 3 trending skills to suggestions if not present
+             for trend in market_outlook["trending_skills"][:3]:
+                 if trend.lower() not in [s.lower() for s in user_skills] and trend not in combined_missing:
+                     combined_missing.insert(0, trend + " (Trending)")
 
-    return {
-        "status": "success",
-        "soc_code": soc_code,
-        "soc_title": soc_title,
-        "north_star": {
-            "score": north_star_score,
-            "velocity": profile.learning_pace or "Moderate",
-            "market_summary": market_outlook.get("summary", "")
-        },
-        "radar": {
-            "salary": salary_match,
-            "demand": demand_match,
-            "skill": skill_match,
-            "growth": future_growth
-        },
-        "gap_analysis": {
-            "missing_skills": combined_missing,
-            "market_skills": top_market_skills
+        return {
+            "status": "success",
+            "soc_code": soc_code,
+            "soc_title": soc_title,
+            "north_star": {
+                "score": north_star_score,
+                "velocity": profile.learning_pace or "Moderate",
+                "market_summary": market_outlook.get("summary", "")
+            },
+            "radar": {
+                "salary": salary_match,
+                "demand": demand_match,
+                "skill": skill_match,
+                "growth": future_growth
+            },
+            "gap_analysis": {
+                "missing_skills": combined_missing,
+                "market_skills": top_market_skills
+            }
         }
-    }
+    
+    except Exception as e:
+        print(f"Error in profile analysis: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to generate profile analysis: {str(e)}")
 
 
 
@@ -620,55 +905,75 @@ async def get_profile_insights(
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
-    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
-    
-    if not profile:
-        raise HTTPException(status_code=400, detail="Profile not found")
-
-    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-    
-    # Construct context for the AI
-    skills = json.loads(profile.skills) if profile.skills else []
-    role = profile.desired_role or "General Technology"
-    location = profile.location or "Global"
-    
-    prompt = f"""
-    Analyze the career profile for a user targeting the role of '{role}' based in '{location}'.
-    Their current skills are: {', '.join(skills)}.
-    
-    Provide a JSON response with the following market insights:
-    1. "trending_skills": A list of 3-5 top trending skills they should learn next for this role.
-    2. "role_growth": A percentage string (e.g. "+12%") representing estimated annual hiring growth for this role.
-    3. "salary_insight": A short string comparing their target income of {profile.expected_income} to the market average (e.g. "Within market range" or "Above average").
-    4. "market_outlook": A concise 1-sentence summary of the job market for this role.
-    5. "hot_sectors": A list of 2-3 industries currently hiring aggressively for this role.
-    
-    Return ONLY valid JSON.
-    """
-
     try:
-        completion = client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": "You are a career market analyst providing real-time data insights. Output distinct JSON only."},
-                {"role": "user", "content": prompt}
-            ],
-            model="llama3-8b-8192",
-            temperature=0.7,
-            response_format={"type": "json_object"}
-        )
+        profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
         
-        content = completion.choices[0].message.content
-        return json.loads(content)
+        if not profile:
+            raise HTTPException(status_code=400, detail="Profile not found")
+
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
         
-    except Exception as e:
-        print(f"Error generating insights: {e}")
+        # Construct context for the AI
+        skills = json.loads(profile.skills) if profile.skills else []
+        role = profile.desired_role or "General Technology"
+        location = profile.location or "Global"
+        
+        prompt = f"""
+        Analyze the career profile for a user targeting the role of '{role}' based in '{location}'.
+        Their current skills are: {', '.join(skills) if skills else 'None listed'}.
+        
+        Provide a JSON response with the following market insights:
+        1. "trending_skills": A list of 3-5 top trending skills they should learn next for this role.
+        2. "role_growth": A percentage string (e.g. "+12%") representing estimated annual hiring growth for this role.
+        3. "salary_insight": A short string comparing their target income to the market average.
+        4. "market_outlook": A concise 1-sentence summary of the job market for this role.
+        5. "hot_sectors": A list of 2-3 industries currently hiring aggressively for this role.
+        
+        Return ONLY valid JSON.
+        """
+
+        try:
+            completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": "You are a career market analyst providing real-time data insights. Output distinct JSON only."},
+                    {"role": "user", "content": prompt}
+                ],
+                model="groq/compound",
+                temperature=0.7,
+                response_format={"type": "json_object"}
+            )
+            
+            content = completion.choices[0].message.content
+            result = json.loads(content)
+            # Validate required fields exist
+            if all(key in result for key in ["trending_skills", "role_growth", "salary_insight", "market_outlook", "hot_sectors"]):
+                return result
+        except Exception as llm_err:
+            print(f"LLM error in profile-insights: {llm_err}")
+        
         # Fallback data if AI fails
+        print(f"Using fallback data for profile insights")
         return {
              "trending_skills": ["Cloud Architecture", "AI Integration", "Data Security"],
              "role_growth": "+8%",
              "salary_insight": "Market competitive",
-             "market_outlook": "Steady demand with a shift towards hybrid specializations.",
-             "hot_sectors": ["Fintech", "Healthcare"]
+             "market_outlook": "Steady demand with unique specializations.",
+             "hot_sectors": ["Technology", "Finance", "Healthcare"]
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in profile insights: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Return fallback instead of throwing error
+        return {
+             "trending_skills": ["Cloud Architecture", "AI Integration", "Data Security"],
+             "role_growth": "+8%",
+             "salary_insight": "Market competitive",
+             "market_outlook": "Steady demand with growth opportunities.",
+             "hot_sectors": ["Technology", "Finance", "Healthcare"]
         }
 
 @app.post("/add-skill")

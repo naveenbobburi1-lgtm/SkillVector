@@ -1,14 +1,48 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
+import { API_BASE_URL, getToken } from "@/lib/auth";
+import { useRouter } from "next/navigation";
 
 interface RealityGapBridgeProps {
     missingSkills?: string[];
 }
 
 export default function RealityGapBridge({ missingSkills = [] }: RealityGapBridgeProps) {
+    const router = useRouter();
+    const [loadingSkill, setLoadingSkill] = useState<string | null>(null);
+
     // If no specific missing skills passed, show generic state or "All good"
     const hasGaps = missingSkills.length > 0;
+
+    const handleAddToPath = async (skill: string) => {
+        setLoadingSkill(skill);
+        const token = getToken();
+        
+        try {
+            const res = await fetch(`${API_BASE_URL}/add-skill-and-regenerate-path`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({ skill })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                // Redirect to learning path which will regenerate
+                router.push("/learning-path");
+            } else {
+                alert("Failed to add skill to path");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error adding skill to path");
+        } finally {
+            setLoadingSkill(null);
+        }
+    };
 
     return (
         <div className="glass-panel p-6 rounded-3xl h-full flex flex-col justify-center">
@@ -41,8 +75,19 @@ export default function RealityGapBridge({ missingSkills = [] }: RealityGapBridg
                                     <span className="material-symbols-outlined text-warning text-sm">block</span>
                                     <span className="text-sm font-medium text-text-main">{skill}</span>
                                 </div>
-                                <button className="text-[10px] font-bold text-primary bg-primary/5 px-2 py-1 rounded hover:bg-primary/10 transition-colors uppercase">
-                                    Add to Path
+                                <button 
+                                    onClick={() => handleAddToPath(skill)}
+                                    disabled={loadingSkill === skill}
+                                    className="text-[10px] font-bold text-primary bg-primary/5 px-2 py-1 rounded hover:bg-primary/10 transition-colors uppercase disabled:opacity-50 flex items-center gap-1"
+                                >
+                                    {loadingSkill === skill ? (
+                                        <>
+                                            <span className="inline-block h-2 w-2 border border-primary border-t-transparent rounded-full animate-spin"></span>
+                                            Adding...
+                                        </>
+                                    ) : (
+                                        "Add to Path"
+                                    )}
                                 </button>
                             </div>
                         ))}

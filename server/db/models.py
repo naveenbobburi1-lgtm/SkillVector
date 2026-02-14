@@ -100,6 +100,29 @@ class LearningPath(Base):
     path_data = Column(String, nullable=False) # Stored as JSON string
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+class PhaseProgress(Base):
+    __tablename__ = "phase_progress"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, nullable=False)
+    phase_index = Column(Integer, nullable=False)  # 0-based index
+    is_unlocked = Column(Boolean, default=False)
+    is_completed = Column(Boolean, default=False)
+    test_passed = Column(Boolean, default=False)
+    best_score = Column(Integer, default=0)  # Best test score percentage
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class TestAttempt(Base):
+    __tablename__ = "test_attempts"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, nullable=False)
+    phase_index = Column(Integer, nullable=False)
+    score = Column(Integer, nullable=False)  # Score percentage (0-100)
+    answers = Column(String, nullable=False)  # JSON string of user answers
+    passed = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
