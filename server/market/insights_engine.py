@@ -49,7 +49,7 @@ def analyze_role_outlook(role_name: str):
         """
 
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="groq/compound",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
             response_format={"type": "json_object"}
