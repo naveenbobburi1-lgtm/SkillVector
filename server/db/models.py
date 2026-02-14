@@ -124,6 +124,16 @@ class TestAttempt(Base):
     passed = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+class ActiveTest(Base):
+    __tablename__ = "active_tests"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, nullable=False)
+    phase_index = Column(Integer, nullable=False)
+    questions_data = Column(String, nullable=False)  # Full JSON with correct answers
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
 

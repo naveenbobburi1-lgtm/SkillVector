@@ -1,7 +1,7 @@
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from db.database import get_db,init_db
-from db.models import UserDB, UserProfile, ProfileDB, SkillDB, CertificationDB, CareerGoalDB, LearningPath, PasswordResetToken, PhaseProgress, TestAttempt
+from db.models import UserDB, UserProfile, ProfileDB, SkillDB, CertificationDB, CareerGoalDB, LearningPath, PasswordResetToken, PhaseProgress, TestAttempt, ActiveTest
 import schemas.UserSchemas as schemas
 import schemas.ProfileSchemas as profile_schemas
 from rag.retriever import clean_llm_json
@@ -482,6 +482,24 @@ async def get_phase_test(
     from utils.test_generator import generate_phase_mcqs
     questions = generate_phase_mcqs(phase_data, phase_index)
     
+    # Store questions with correct answers in DB for later validation
+    existing = db.query(ActiveTest).filter(
+        ActiveTest.user_id == current_user.id,
+        ActiveTest.phase_index == phase_index
+    ).first()
+    
+    if existing:
+        existing.questions_data = json.dumps(questions)
+        existing.created_at = func.now()
+    else:
+        active_test = ActiveTest(
+            user_id=current_user.id,
+            phase_index=phase_index,
+            questions_data=json.dumps(questions)
+        )
+        db.add(active_test)
+    db.commit()
+    
     # Don't send correct answers to frontend
     questions_without_answers = [
         {
@@ -511,25 +529,19 @@ async def submit_test(
     phase_index = test_data.get("phase_index")
     user_answers = test_data.get("answers", [])  # List of indices
     
-    # Get the correct answers
-    path = db.query(LearningPath).filter(LearningPath.user_id == current_user.id).first()
-    if not path:
-        raise HTTPException(status_code=404, detail="Learning path not found")
+    # Retrieve the SAME questions that were shown to the user
+    active_test = db.query(ActiveTest).filter(
+        ActiveTest.user_id == current_user.id,
+        ActiveTest.phase_index == phase_index
+    ).first()
     
-    path_data = json.loads(path.path_data)
-    learning_path = path_data.get("learning_path", [])
+    if not active_test:
+        raise HTTPException(status_code=400, detail="No active test found. Please take the test first.")
     
-    if phase_index >= len(learning_path):
-        raise HTTPException(status_code=404, detail="Phase not found")
-    
-    phase_data = learning_path[phase_index]
-    
-    # Generate same MCQs to get correct answers
-    from utils.test_generator import generate_phase_mcqs
-    questions = generate_phase_mcqs(phase_data, phase_index)
+    questions = json.loads(active_test.questions_data)
     
     if not questions or len(questions) == 0:
-        raise HTTPException(status_code=500, detail="Failed to generate test questions")
+        raise HTTPException(status_code=500, detail="No test questions found")
     
     # Calculate score
     correct_count = 0

@@ -206,6 +206,10 @@ export default function LearningPathPage() {
 
   if (!data) return null;
 
+  const totalPhases = data.learning_path.length;
+  const completedPhases = progress.filter((p) => p.is_completed).length;
+  const allPhasesCompleted = totalPhases > 0 && completedPhases === totalPhases;
+
   return (
     <div className="min-h-screen bg-background text-text-main font-sans selection:bg-primary selection:text-white">
       <Navbar activePage="learning-path" />
@@ -253,6 +257,27 @@ export default function LearningPathPage() {
 
         {/* Roadmap */}
         <div className="relative border-l-2 border-border ml-4 md:ml-10 space-y-12 pb-12">
+          {/* Overall Progress Bar */}
+          <div className="pl-8 md:pl-12 mb-4">
+            <div className="bg-surface-1 border border-border rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-lg">trending_up</span>
+                  Overall Progress
+                </h3>
+                <span className="text-sm font-bold text-text-main">{completedPhases} / {totalPhases} Phases</span>
+              </div>
+              <div className="h-3 bg-surface-2 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-primary to-success transition-all duration-500 rounded-full"
+                  style={{ width: `${totalPhases > 0 ? (completedPhases / totalPhases) * 100 : 0}%` }}
+                ></div>
+              </div>
+              {allPhasesCompleted && (
+                <p className="text-xs text-success mt-2 font-medium">All phases completed!</p>
+              )}
+            </div>
+          </div>
           {data.learning_path.map((phase: any, index: number) => {
             const phaseProgress = getPhaseProgress(index);
             const isLocked = !phaseProgress.is_unlocked;
@@ -437,6 +462,47 @@ export default function LearningPathPage() {
             );
           })}
         </div>
+
+        {/* Learning Path Completed Banner */}
+        {allPhasesCompleted && (
+          <div className="relative overflow-hidden bg-gradient-to-br from-success/10 via-primary/5 to-success/10 border-2 border-success/30 rounded-2xl p-8 md:p-12 text-center">
+            <div className="absolute inset-0 opacity-5 pointer-events-none">
+              <div className="absolute top-4 left-8 text-6xl">🎉</div>
+              <div className="absolute top-8 right-12 text-5xl">🏆</div>
+              <div className="absolute bottom-4 left-1/4 text-4xl">⭐</div>
+              <div className="absolute bottom-6 right-1/4 text-5xl">🚀</div>
+            </div>
+            
+            <div className="relative z-10 space-y-4">
+              <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-success/20 border-2 border-success/40 mx-auto">
+                <span className="material-symbols-outlined text-5xl text-success">emoji_events</span>
+              </div>
+              <h2 className="text-3xl md:text-4xl font-bold text-text-main">
+                Learning Path <span className="text-transparent bg-clip-text bg-gradient-to-r from-success to-primary">Completed!</span>
+              </h2>
+              <p className="text-lg text-text-muted max-w-xl mx-auto">
+                Congratulations! You've successfully completed all {totalPhases} phases of your learning path. 
+                You've demonstrated mastery across every topic.
+              </p>
+              <div className="flex flex-wrap justify-center gap-4 pt-4">
+                <Link
+                  href="/profile"
+                  className="px-6 py-3 bg-primary hover:bg-primary-hover text-white rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg hover:shadow-xl"
+                >
+                  <span className="material-symbols-outlined">person</span>
+                  View Profile
+                </Link>
+                <Link
+                  href="/market-insights"
+                  className="px-6 py-3 bg-surface-2 hover:bg-surface-3 text-text-main rounded-xl font-bold transition-all flex items-center gap-2 border border-border"
+                >
+                  <span className="material-symbols-outlined">query_stats</span>
+                  Market Insights
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Test Modal */}
@@ -465,6 +531,7 @@ export default function LearningPathPage() {
           totalQuestions={testResult.total_questions}
           results={testResult.results}
           nextPhaseUnlocked={testResult.next_phase_unlocked}
+          isLastPhase={currentTestPhase === data.learning_path.length - 1}
         />
       )}
     </div>

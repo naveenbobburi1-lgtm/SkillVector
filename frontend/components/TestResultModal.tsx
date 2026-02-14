@@ -17,6 +17,7 @@ interface TestResultModalProps {
     totalQuestions: number;
     results: TestResult[];
     nextPhaseUnlocked: boolean;
+    isLastPhase?: boolean;
 }
 
 export default function TestResultModal({
@@ -27,7 +28,8 @@ export default function TestResultModal({
     correctCount,
     totalQuestions,
     results,
-    nextPhaseUnlocked
+    nextPhaseUnlocked,
+    isLastPhase = false
 }: TestResultModalProps) {
     if (!isOpen) return null;
 
@@ -46,16 +48,23 @@ export default function TestResultModal({
                         </span>
                     </div>
                     <h2 className="text-3xl font-bold text-text-main mb-2">
-                        {passed ? "Congratulations!" : "Keep Trying!"}
+                        {passed ? (isLastPhase ? "🎉 Path Completed!" : "Congratulations!") : "Keep Trying!"}
                     </h2>
                     <p className="text-lg text-text-muted mb-4">
                         You scored <span className="font-bold text-text-main">{score}%</span> ({correctCount}/{totalQuestions} correct)
                     </p>
                     {passed ? (
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-success/10 border border-success/20 rounded-lg">
-                            <span className="material-symbols-outlined text-success">lock_open</span>
-                            <span className="text-success font-medium">Next phase unlocked!</span>
-                        </div>
+                        isLastPhase ? (
+                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-success/10 border border-success/20 rounded-lg">
+                                <span className="material-symbols-outlined text-success">emoji_events</span>
+                                <span className="text-success font-medium">You've completed the entire learning path!</span>
+                            </div>
+                        ) : (
+                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-success/10 border border-success/20 rounded-lg">
+                                <span className="material-symbols-outlined text-success">lock_open</span>
+                                <span className="text-success font-medium">Next phase unlocked!</span>
+                            </div>
+                        )
                     ) : (
                         <div className="inline-flex items-center gap-2 px-4 py-2 bg-warning/10 border border-warning/20 rounded-lg">
                             <span className="material-symbols-outlined text-warning">lock</span>
@@ -132,7 +141,7 @@ export default function TestResultModal({
                         onClick={onClose}
                         className={`${passed ? "flex-1" : ""} px-6 py-3 bg-surface-2 hover:bg-surface-3 text-text-main rounded-xl font-medium transition-colors`}
                     >
-                        {passed ? "Continue Learning" : "Review Material"}
+                        {passed ? (isLastPhase ? "View Completed Path" : "Continue Learning") : "Review Material"}
                     </button>
                 </div>
             </div>

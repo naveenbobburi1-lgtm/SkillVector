@@ -56,7 +56,7 @@ export default function TestModal({ isOpen, onClose, phaseIndex, phaseName, ques
 
     const question = questions[currentQuestion];
     const answeredCount = answers.filter(a => a !== -1).length;
-    const progress = (answeredCount / questions.length) * 100;
+    const questionProgress = ((currentQuestion + 1) / questions.length) * 100;
 
     const getDifficultyColor = (difficulty: string) => {
         switch (difficulty?.toLowerCase()) {
@@ -88,13 +88,13 @@ export default function TestModal({ isOpen, onClose, phaseIndex, phaseName, ques
                 {/* Progress Bar */}
                 <div className="mb-6">
                     <div className="flex justify-between text-sm mb-2">
-                        <span className="text-text-muted">Progress: {answeredCount} / {questions.length}</span>
-                        <span className="text-text-main font-medium">{Math.round(progress)}%</span>
+                        <span className="text-text-muted">Question: {currentQuestion + 1} / {questions.length} <span className="ml-2 text-text-dim">({answeredCount} answered)</span></span>
+                        <span className="text-text-main font-medium">{Math.round(questionProgress)}%</span>
                     </div>
                     <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
                         <div
                             className="h-full bg-primary transition-all duration-300"
-                            style={{ width: `${progress}%` }}
+                            style={{ width: `${questionProgress}%` }}
                         ></div>
                     </div>
                 </div>
@@ -183,7 +183,7 @@ export default function TestModal({ isOpen, onClose, phaseIndex, phaseName, ques
                     ) : (
                         <button
                             onClick={handleSubmit}
-                            disabled={isSubmitting || answeredCount < questions.length}
+                            disabled={isSubmitting}
                             className="px-6 py-3 bg-success hover:bg-success/90 text-white rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 w-full sm:w-auto justify-center shadow-xl hover:shadow-2xl hover:scale-105"
                             style={{ minWidth: '140px' }}
                         >
