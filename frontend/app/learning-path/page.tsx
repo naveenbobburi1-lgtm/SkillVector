@@ -8,6 +8,7 @@ import { API_BASE_URL, getToken, removeToken } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
 import TestModal from "@/components/TestModal";
 import TestResultModal from "@/components/TestResultModal";
+import AIAssistant from "@/components/AIAssistant";
 
 export default function LearningPathPage() {
   const router = useRouter();
@@ -534,6 +535,9 @@ export default function LearningPathPage() {
           isLastPhase={currentTestPhase === data.learning_path.length - 1}
         />
       )}
+
+      {/* AI Assistant */}
+      <AIAssistant learningPath={data} />
     </div>
   );
 }
