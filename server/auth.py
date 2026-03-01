@@ -1,4 +1,4 @@
-from passlib.context import CryptContext
+import bcrypt
 from datetime import datetime, timedelta
 import os 
 from fastapi import Depends, HTTPException, status
@@ -9,13 +9,12 @@ from db.models import UserDB
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 load_dotenv()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 def verify_password(password: str, hashed: str) -> bool:
-    return pwd_context.verify(password, hashed)
+    return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
 SECRET_KEY = os.getenv("SECRET_KEY") 
 ALGORITHM = "HS256"
@@ -47,5 +46,10 @@ def get_current_user(
     user = db.query(UserDB).filter(UserDB.email == email).first()
     if user is None:
         raise HTTPException(status_code=401)
+    if not user.is_active:
+        raise HTTPException(
+            status_code=403,
+            detail="Your account has been suspended. Contact an administrator."
+        )
 
     return user

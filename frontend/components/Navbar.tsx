@@ -6,7 +6,7 @@ import { getUserProfile, getToken } from "@/lib/auth";
 import UserMenu from "@/components/UserMenu";
 
 interface NavbarProps {
-    activePage?: "learning-path" | "profile" | "market-insights";
+    activePage?: "learning-path" | "profile" | "market-insights" | "assignments";
 }
 
 export default function Navbar({ activePage }: NavbarProps) {
@@ -44,6 +44,7 @@ export default function Navbar({ activePage }: NavbarProps) {
             {/* Center Nav (Desktop) */}
             <div className="hidden md:flex items-center gap-1 p-1 bg-surface-2/50 rounded-full border border-border/50">
                 <Link href="/learning-path" className={navLinkClass("learning-path")}>Learning Path</Link>
+                <Link href="/assignments" className={navLinkClass("assignments")}>Assignments</Link>
                 <Link href="/profile" className={navLinkClass("profile")}>Neural Profile</Link>
                 <Link href="/market-insights" className={navLinkClass("market-insights")}>Market Insights</Link>
             </div>
