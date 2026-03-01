@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from db.database import get_db,init_db
 from db.models import UserDB, UserProfile, ProfileDB, SkillDB, CertificationDB, CareerGoalDB, LearningPath, PasswordResetToken, PhaseProgress, TestAttempt, ActiveTest, VideoAssignment, UserVideoAssignment, VideoProgress, AdminActivityLog
@@ -84,6 +84,8 @@ async def login_user(user:schemas.UserLogin,db:Session=Depends(get_db)):
         raise HTTPException(status_code=401,detail="Invalid credentials")
     if not verify_password(user.password, db_user.hashed_password):
         raise HTTPException(status_code=401,detail="Invalid credentials")
+    if not db_user.is_active:
+        raise HTTPException(status_code=403,detail="Your account has been suspended. Contact an administrator.")
     access_token=create_access_token(data={"sub":db_user.email})   
     return {"access_token":access_token,"token_type":"bearer","user_id":db_user.id}
 
@@ -1065,7 +1067,7 @@ async def add_certification(
 
 @app.post("/ai-assistant")
 async def ai_assistant(
-    payload: dict,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
@@ -1073,6 +1075,7 @@ async def ai_assistant(
     AI Assistant that answers user queries about learning path topics.
     Uses groq/compound model which can search the web and return sources.
     """
+    payload = await request.json()
     question = payload.get("question", "").strip()
     phase_context = payload.get("phase_context", None)  # optional: current phase info
     conversation_history = payload.get("history", [])  # optional: previous messages
@@ -1274,6 +1277,8 @@ async def admin_login(user: schemas.UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not verify_password(user.password, db_user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not db_user.is_active:
+        raise HTTPException(status_code=403, detail="Your account has been suspended. Contact an administrator.")
     if not db_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
     access_token = create_access_token(data={"sub": db_user.email, "is_admin": True})
@@ -1847,19 +1852,19 @@ async def get_my_assignments(
         ).first()
 
         result.append({
-            "id": video.id,
+            "assignment_id": a.id,
+            "video_id": video.id,
             "title": video.title,
+            "youtube_url": video.youtube_url,
             "youtube_video_id": video.youtube_video_id,
             "description": video.description,
             "duration_seconds": video.duration_seconds,
             "category": video.category,
             "due_date": a.due_date.isoformat() if a.due_date else None,
             "is_mandatory": a.is_mandatory,
-            "progress": {
-                "watched_seconds": progress.watched_seconds if progress else 0,
-                "completion_percent": round(progress.completion_percent, 1) if progress else 0,
-                "is_completed": progress.is_completed if progress else False,
-            }
+            "watched_seconds": progress.watched_seconds if progress else 0,
+            "completion_percent": round(progress.completion_percent, 1) if progress else 0,
+            "is_completed": progress.is_completed if progress else False,
         })
 
     return {"assignments": result}
@@ -1867,7 +1872,7 @@ async def get_my_assignments(
 
 @app.post("/video-progress/heartbeat")
 async def video_heartbeat(
-    payload: dict,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
@@ -1876,10 +1881,13 @@ async def video_heartbeat(
     Frontend sends this every 5 seconds while watching.
     Validates that watching is legitimate (no fast-forwarding beyond threshold).
     """
+    payload = await request.json()
     video_id = payload.get("video_id")
-    current_time = payload.get("current_time", 0)  # Current position in seconds
-    is_playing = payload.get("is_playing", True)
-    session_watched = payload.get("session_watched", 0)  # Seconds watched in this session
+    # Accept both field names for compatibility
+    current_time = payload.get("current_time") or payload.get("current_position", 0)
+    event_type = payload.get("event_type", "heartbeat")
+    is_playing = payload.get("is_playing", event_type not in ("pause", "ended"))
+    session_watched = payload.get("session_watched", 5 if is_playing else 0)  # Default ~5s per heartbeat interval
 
     if not video_id:
         raise HTTPException(status_code=400, detail="video_id required")
@@ -1951,10 +1959,11 @@ async def video_heartbeat(
 
 @app.post("/make-admin")
 async def make_first_admin(
-    payload: dict,
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """One-time setup to make a user admin. Only works if no admins exist yet."""
+    payload = await request.json()
     admin_count = db.query(func.count(UserDB.id)).filter(UserDB.is_admin == True).scalar()
     if admin_count > 0:
         raise HTTPException(status_code=403, detail="Admin already exists. Use admin panel to manage admins.")

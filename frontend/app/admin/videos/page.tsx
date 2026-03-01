@@ -1,408 +1,520 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { API_BASE_URL } from "@/lib/auth";
 
+/* ─── Types ─── */
 interface Video {
-  id: number;
-  title: string;
-  youtube_url: string;
-  youtube_video_id: string;
-  description: string | null;
-  duration_seconds: number;
-  category: string | null;
-  created_at: string;
-  assigned_count: number;
-  completed_count: number;
-  avg_completion: number;
-  cheat_flag_count: number;
+  id: number; title: string; youtube_url: string; category: string;
+  duration_seconds: number; is_active: boolean; created_at: string;
+  assigned_count?: number; completed_count?: number;
 }
 
-type ViewMode = "grid" | "list";
-type SortBy = "newest" | "title" | "assigned" | "completion";
-
 export default function AdminVideosPage() {
+  const router = useRouter();
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
-  const [showAssign, setShowAssign] = useState<number | null>(null);
-  const [showProgress, setShowProgress] = useState<number | null>(null);
-  const [progress, setProgress] = useState<any[]>([]);
-  const [progressLoading, setProgressLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [sortBy, setSortBy] = useState<SortBy>("newest");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("all");
+  const [sort, setSort] = useState("newest");
+  const [view, setView] = useState<"grid" | "list">("grid");
+  const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") : null;
 
-  const [form, setForm] = useState({ youtube_url: "", title: "", description: "", duration_seconds: 0, category: "" });
+  /* modals */
+  const [showCreate, setShowCreate] = useState(false);
+  const [showAssign, setShowAssign] = useState(false);
+  const [showProgress, setShowProgress] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
+
+  /* create form */
+  const [cTitle, setCTitle] = useState("");
+  const [cUrl, setCUrl] = useState("");
+  const [cCategory, setCCategory] = useState("");
+  const [cDuration, setCDuration] = useState(0);
   const [creating, setCreating] = useState(false);
 
+  /* assign form */
   const [assignMode, setAssignMode] = useState<"all" | "specific">("all");
   const [assignUserIds, setAssignUserIds] = useState("");
   const [assignDueDate, setAssignDueDate] = useState("");
-  const [mandatory, setMandatory] = useState(true);
+  const [assignMandatory, setAssignMandatory] = useState(true);
   const [assigning, setAssigning] = useState(false);
+  const [assignMsg, setAssignMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") : null;
+  /* progress data */
+  const [progressData, setProgressData] = useState<any[]>([]);
+  const [progressLoading, setProgressLoading] = useState(false);
 
-  async function fetchVideos() {
-    setLoading(true);
+  const fetchVideos = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/videos`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(`${API_BASE_URL}/admin/videos`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
         setVideos(data.videos || []);
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }
+  }, [token]);
 
-  async function createVideo(e: React.FormEvent) {
-    e.preventDefault();
+  useEffect(() => { fetchVideos(); }, [fetchVideos]);
+
+  /* ─── CRUD ─── */
+  async function handleCreate() {
+    if (!cTitle || !cUrl) return;
     setCreating(true);
     try {
       const res = await fetch(`${API_BASE_URL}/admin/videos`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ ...form, duration_seconds: form.duration_seconds || 0, category: form.category || null, description: form.description || null }),
+        body: JSON.stringify({ title: cTitle, youtube_url: cUrl, category: cCategory, duration_seconds: cDuration }),
       });
       if (res.ok) {
-        setShowCreate(false);
-        setForm({ youtube_url: "", title: "", description: "", duration_seconds: 0, category: "" });
+        setShowCreate(false); setCTitle(""); setCUrl(""); setCCategory(""); setCDuration(0);
         fetchVideos();
-      } else {
-        const err = await res.json();
-        alert(err.detail || "Failed to create video");
       }
     } catch (e) { console.error(e); }
     finally { setCreating(false); }
   }
 
-  async function deleteVideo(id: number) {
-    if (!confirm("Delete this video and all related progress data?")) return;
+  async function handleDelete(id: number) {
+    if (!confirm("Delete this video?")) return;
     try {
-      await fetch(`${API_BASE_URL}/admin/videos/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      await fetch(`${API_BASE_URL}/admin/videos/${id}`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${token}` },
+      });
       fetchVideos();
     } catch (e) { console.error(e); }
   }
 
-  async function assignVideo(videoId: number) {
-    setAssigning(true);
+  async function handleAssign() {
+    if (!selectedVideo) return;
+    setAssigning(true); setAssignMsg(null);
+    const body: any = { due_date: assignDueDate || null, is_mandatory: assignMandatory };
+    if (assignMode === "specific") body.user_ids = assignUserIds.split(",").map((s) => Number(s.trim())).filter(Boolean);
     try {
-      const body: any = { is_mandatory: mandatory };
-      if (assignDueDate) body.due_date = assignDueDate;
-      if (assignMode === "specific") {
-        body.user_ids = assignUserIds.split(",").map((id) => parseInt(id.trim())).filter(Boolean);
-      }
-      const res = await fetch(`${API_BASE_URL}/admin/videos/${videoId}/assign`, {
+      const res = await fetch(`${API_BASE_URL}/admin/videos/${selectedVideo.id}/assign`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
       });
       if (res.ok) {
         const data = await res.json();
-        alert(`Assigned to ${data.assigned_count} users`);
-        setShowAssign(null);
+        setAssignMsg({ type: "success", text: `Assigned to ${data.assigned_count} user(s)` });
         fetchVideos();
+        setTimeout(() => setShowAssign(false), 1200);
       } else {
-        const err = await res.json();
-        alert(err.detail || "Failed to assign");
+        const e = await res.json().catch(() => ({}));
+        setAssignMsg({ type: "error", text: e.detail || "Failed" });
       }
-    } catch (e) { console.error(e); }
+    } catch { setAssignMsg({ type: "error", text: "Network error" }); }
     finally { setAssigning(false); }
   }
 
-  async function fetchProgress(videoId: number) {
-    setProgressLoading(true);
-    setShowProgress(videoId);
+  async function openProgress(v: Video) {
+    setSelectedVideo(v); setShowProgress(true); setProgressLoading(true); setProgressData([]);
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/videos/${videoId}/progress`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) setProgress(await res.json());
+      const res = await fetch(`${API_BASE_URL}/admin/videos/${v.id}/progress`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) { const d = await res.json(); setProgressData(d.progress || []); }
     } catch (e) { console.error(e); }
     finally { setProgressLoading(false); }
   }
 
-  useEffect(() => { fetchVideos(); }, []);
+  /* ─── Helpers ─── */
+  const categories = ["all", ...Array.from(new Set(videos.map((v) => v.category).filter(Boolean)))];
 
-  function formatDuration(s: number) {
-    if (!s) return "—";
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, "0")}`;
+  const filtered = videos
+    .filter((v) => (category === "all" || v.category === category))
+    .filter((v) => !search || v.title.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      if (sort === "newest") return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (sort === "title") return a.title.localeCompare(b.title);
+      if (sort === "assigned") return (b.assigned_count || 0) - (a.assigned_count || 0);
+      if (sort === "completion") return (b.completed_count || 0) - (a.completed_count || 0);
+      return 0;
+    });
+
+  function ytThumb(url: string) {
+    const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([^&?#]+)/);
+    return m ? `https://img.youtube.com/vi/${m[1]}/mqdefault.jpg` : null;
   }
 
-  // Filtering & Sorting
-  const categories = Array.from(new Set(videos.map(v => v.category).filter(Boolean))) as string[];
-  const filtered = videos
-    .filter(v => categoryFilter === "all" || v.category === categoryFilter)
-    .filter(v => !searchQuery || v.title.toLowerCase().includes(searchQuery.toLowerCase()))
-    .sort((a, b) => {
-      if (sortBy === "title") return a.title.localeCompare(b.title);
-      if (sortBy === "assigned") return b.assigned_count - a.assigned_count;
-      if (sortBy === "completion") return b.avg_completion - a.avg_completion;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
+  function fmtDuration(s: number) { return s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`; }
+
+  if (loading) return (
+    <div className="space-y-6">
+      <div className="h-10 skeleton w-60" />
+      <div className="flex gap-3">{[1,2,3].map(i => <div key={i} className="h-9 skeleton w-24" />)}</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        {[1,2,3,4,5,6].map(i => <div key={i} className="h-72 skeleton rounded-2xl" />)}
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fadeInUp">
         <div>
-          <h1 className="text-2xl font-bold text-text-main">Video Management</h1>
-          <p className="text-text-muted text-sm mt-1">{videos.length} videos · {videos.reduce((s, v) => s + v.assigned_count, 0)} total assignments</p>
+          <h2 className="text-lg font-bold text-text-main">Video Library</h2>
+          <p className="text-xs text-text-dim">{videos.length} video{videos.length !== 1 && "s"} total</p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-medium transition-colors shadow-sm shadow-primary/15 flex items-center gap-2">
-          <span className="material-symbols-outlined text-lg">add</span>
-          Add Video
+        <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-primary to-violet-500 hover:from-primary-hover hover:to-violet-600 text-white rounded-xl text-sm font-semibold transition-all shadow-sm shadow-primary/20 hover:shadow-md">
+          <span className="material-symbols-outlined text-base">add_circle</span>
+          Create Video
         </button>
       </div>
 
-      {/* Filters Bar */}
-      <div className="flex flex-wrap items-center gap-3">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3 animate-fadeInUp stagger-1">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <span className="material-symbols-outlined text-text-dim absolute left-3 top-1/2 -translate-y-1/2 text-lg">search</span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search videos..."
-            className="w-full bg-surface-1 border border-border text-text-main rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-colors"
-          />
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-dim text-lg">search</span>
+          <input value={search} onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search videos…"
+            className="w-full bg-surface-1 border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-text-main placeholder:text-text-dim focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all" />
         </div>
 
-        {/* Category Filter */}
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="bg-surface-1 border border-border text-text-main rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary appearance-none cursor-pointer"
-        >
-          <option value="all">All Categories</option>
-          {categories.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+        {/* Category Tabs */}
+        <div className="flex gap-1 p-1 bg-surface-1 border border-border rounded-xl">
+          {categories.map((c) => (
+            <button key={c} onClick={() => setCategory(c)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${
+                category === c ? "bg-primary/10 text-primary font-semibold" : "text-text-muted hover:text-text-main hover:bg-surface-2"
+              }`}>{c === "all" ? "All" : c}</button>
+          ))}
+        </div>
 
         {/* Sort */}
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as SortBy)}
-          className="bg-surface-1 border border-border text-text-main rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary appearance-none cursor-pointer"
-        >
-          <option value="newest">Newest First</option>
-          <option value="title">Title A-Z</option>
+        <select value={sort} onChange={(e) => setSort(e.target.value)}
+          className="bg-surface-1 border border-border rounded-xl px-3 py-2.5 text-xs text-text-main focus:outline-none focus:border-primary cursor-pointer">
+          <option value="newest">Newest</option>
+          <option value="title">Title</option>
           <option value="assigned">Most Assigned</option>
-          <option value="completion">Highest Completion</option>
+          <option value="completion">Most Completed</option>
         </select>
 
-        {/* View toggle */}
-        <div className="flex bg-surface-2 border border-border rounded-xl overflow-hidden">
-          <button onClick={() => setViewMode("grid")} className={`p-2 transition-colors ${viewMode === "grid" ? "bg-surface-1 text-text-main shadow-sm" : "text-text-dim hover:text-text-main"}`}>
-            <span className="material-symbols-outlined text-lg">grid_view</span>
-          </button>
-          <button onClick={() => setViewMode("list")} className={`p-2 transition-colors ${viewMode === "list" ? "bg-surface-1 text-text-main shadow-sm" : "text-text-dim hover:text-text-main"}`}>
-            <span className="material-symbols-outlined text-lg">view_list</span>
-          </button>
+        {/* View Toggle */}
+        <div className="flex gap-0.5 p-1 bg-surface-1 border border-border rounded-xl">
+          {(["grid","list"] as const).map((v) => (
+            <button key={v} onClick={() => setView(v)}
+              className={`p-2 rounded-lg transition-all ${view === v ? "bg-primary/10 text-primary" : "text-text-dim hover:text-text-main"}`}>
+              <span className="material-symbols-outlined text-lg">{v === "grid" ? "grid_view" : "view_list"}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Video Content */}
-      {loading ? (
-        <div className="text-center py-16"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" /></div>
-      ) : filtered.length === 0 ? (
-        <div className="bg-surface-1 border border-border rounded-2xl p-16 text-center shadow-sm">
-          <span className="material-symbols-outlined text-4xl text-text-dim mb-3">video_library</span>
-          <p className="text-text-muted">{videos.length === 0 ? "No videos yet. Add your first video assignment." : "No videos match your filters."}</p>
-        </div>
-      ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((v) => (
-            <div key={v.id} className="bg-surface-1 border border-border rounded-2xl overflow-hidden hover:shadow-md transition-all shadow-sm">
-              <div className="relative aspect-video bg-surface-3">
-                {v.youtube_video_id && <img src={`https://img.youtube.com/vi/${v.youtube_video_id}/mqdefault.jpg`} alt={v.title} className="w-full h-full object-cover" />}
-                <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/70 rounded text-[10px] text-white">{formatDuration(v.duration_seconds)}</div>
-                {v.category && <div className="absolute top-2 left-2 px-2 py-0.5 bg-primary/90 rounded text-[10px] text-white font-medium">{v.category}</div>}
-              </div>
-              <div className="p-4 space-y-3">
-                <h3 className="font-medium text-sm text-text-main line-clamp-2">{v.title}</h3>
-                {v.description && <p className="text-xs text-text-dim line-clamp-2">{v.description}</p>}
-                <div className="flex gap-3 text-[11px] text-text-dim">
-                  <span>{v.assigned_count} assigned</span>
-                  <span>{v.completed_count} completed</span>
-                  <span>Avg {v.avg_completion}%</span>
-                  {v.cheat_flag_count > 0 && <span className="text-red-500">⚠ {v.cheat_flag_count} flags</span>}
-                </div>
-                <div className="w-full h-1.5 bg-surface-3 rounded-full overflow-hidden">
-                  <div className="h-full bg-primary rounded-full" style={{ width: `${v.assigned_count ? (v.completed_count / v.assigned_count) * 100 : 0}%` }} />
-                </div>
-                <div className="flex gap-1.5 pt-1">
-                  <button onClick={() => { setShowAssign(v.id); setAssignMode("all"); setAssignUserIds(""); setAssignDueDate(""); setMandatory(true); }} className="flex-1 py-2 text-xs bg-primary/5 text-primary hover:bg-primary/10 rounded-xl transition-colors font-medium border border-primary/10">
-                    Assign
-                  </button>
-                  <button onClick={() => fetchProgress(v.id)} className="flex-1 py-2 text-xs bg-surface-2 text-text-muted hover:bg-surface-3 rounded-xl transition-colors font-medium border border-border">
-                    Progress
-                  </button>
-                  <button onClick={() => deleteVideo(v.id)} className="py-2 px-3 text-xs bg-surface-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors border border-border">
-                    <span className="material-symbols-outlined text-sm">delete</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        /* List view */
-        <div className="bg-surface-1 border border-border rounded-2xl shadow-sm overflow-hidden divide-y divide-border/50">
-          {filtered.map((v) => (
-            <div key={v.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-surface-2/30 transition-colors">
-              <div className="relative w-28 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-surface-3">
-                {v.youtube_video_id && <img src={`https://img.youtube.com/vi/${v.youtube_video_id}/mqdefault.jpg`} alt="" className="w-full h-full object-cover" />}
-                <div className="absolute bottom-0.5 right-0.5 px-1 py-0.5 bg-black/70 rounded text-[9px] text-white">{formatDuration(v.duration_seconds)}</div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-text-main truncate">{v.title}</p>
-                <div className="flex items-center gap-3 mt-1 text-[11px] text-text-dim">
-                  {v.category && <span className="px-1.5 py-0.5 rounded bg-primary/5 text-primary border border-primary/10 text-[10px]">{v.category}</span>}
-                  <span>{v.assigned_count} assigned</span>
-                  <span>Avg {v.avg_completion}%</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="w-20 h-1.5 bg-surface-3 rounded-full overflow-hidden">
-                  <div className="h-full bg-primary rounded-full" style={{ width: `${v.assigned_count ? (v.completed_count / v.assigned_count) * 100 : 0}%` }} />
-                </div>
-                <div className="flex gap-1">
-                  <button onClick={() => { setShowAssign(v.id); setAssignMode("all"); }} className="p-1.5 rounded-lg hover:bg-surface-2 text-text-dim hover:text-primary transition-colors" title="Assign">
-                    <span className="material-symbols-outlined text-lg">assignment</span>
-                  </button>
-                  <button onClick={() => fetchProgress(v.id)} className="p-1.5 rounded-lg hover:bg-surface-2 text-text-dim hover:text-text-main transition-colors" title="View Progress">
-                    <span className="material-symbols-outlined text-lg">monitoring</span>
-                  </button>
-                  <button onClick={() => deleteVideo(v.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-text-dim hover:text-red-500 transition-colors" title="Delete">
-                    <span className="material-symbols-outlined text-lg">delete</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+      {/* No results */}
+      {filtered.length === 0 && (
+        <div className="bg-surface-1 border border-border rounded-2xl p-16 text-center shadow-sm animate-fadeIn">
+          <span className="material-symbols-outlined text-5xl text-text-dim mb-3">video_library</span>
+          <p className="text-text-muted font-medium">No videos found</p>
+          <p className="text-text-dim text-xs mt-1">Try adjusting your search or filters</p>
         </div>
       )}
 
-      {/* Create Video Modal */}
-      {showCreate && (
-        <Modal onClose={() => setShowCreate(false)} title="Add Video Assignment">
-          <form onSubmit={createVideo} className="space-y-4">
-            <Field label="YouTube URL" required>
-              <input type="url" value={form.youtube_url} onChange={(e) => setForm({ ...form, youtube_url: e.target.value })} placeholder="https://www.youtube.com/watch?v=..." className="w-full bg-surface-2 border border-border text-text-main rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20" required />
-            </Field>
-            <Field label="Title" required>
-              <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Video title" className="w-full bg-surface-2 border border-border text-text-main rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20" required />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Duration (seconds)">
-                <input type="number" value={form.duration_seconds || ""} onChange={(e) => setForm({ ...form, duration_seconds: parseInt(e.target.value) || 0 })} placeholder="300" className="w-full bg-surface-2 border border-border text-text-main rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20" />
-              </Field>
-              <Field label="Category">
-                <input type="text" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="e.g. Tutorial" className="w-full bg-surface-2 border border-border text-text-main rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20" />
-              </Field>
-            </div>
-            <Field label="Description">
-              <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Optional description..." className="w-full bg-surface-2 border border-border text-text-main rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 resize-none" />
-            </Field>
-            <button type="submit" disabled={creating} className="w-full py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 shadow-sm shadow-primary/15">
-              {creating ? "Creating..." : "Create Video"}
-            </button>
-          </form>
-        </Modal>
-      )}
-
-      {/* Assign Video Modal */}
-      {showAssign !== null && (
-        <Modal onClose={() => setShowAssign(null)} title="Assign Video">
-          <div className="space-y-4">
-            <div className="flex gap-2">
-              <button onClick={() => setAssignMode("all")} className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors border ${assignMode === "all" ? "bg-primary text-white border-primary shadow-sm" : "bg-surface-2 text-text-muted border-border"}`}>All Users</button>
-              <button onClick={() => setAssignMode("specific")} className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors border ${assignMode === "specific" ? "bg-primary text-white border-primary shadow-sm" : "bg-surface-2 text-text-muted border-border"}`}>Specific Users</button>
-            </div>
-            {assignMode === "specific" && (
-              <Field label="User IDs (comma-separated)">
-                <input type="text" value={assignUserIds} onChange={(e) => setAssignUserIds(e.target.value)} placeholder="1, 2, 5" className="w-full bg-surface-2 border border-border text-text-main rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20" />
-              </Field>
-            )}
-            <Field label="Due Date (optional)">
-              <input type="date" value={assignDueDate} onChange={(e) => setAssignDueDate(e.target.value)} className="w-full bg-surface-2 border border-border text-text-main rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20" />
-            </Field>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={mandatory} onChange={(e) => setMandatory(e.target.checked)} className="w-4 h-4 rounded border-border bg-surface-2 text-primary focus:ring-primary accent-primary" />
-              <span className="text-sm text-text-muted">Mandatory assignment</span>
-            </label>
-            <button onClick={() => assignVideo(showAssign)} disabled={assigning} className="w-full py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 shadow-sm shadow-primary/15">
-              {assigning ? "Assigning..." : "Assign Video"}
-            </button>
-          </div>
-        </Modal>
-      )}
-
-      {/* Progress Modal */}
-      {showProgress !== null && (
-        <Modal onClose={() => setShowProgress(null)} title="Video Progress">
-          {progressLoading ? (
-            <div className="text-center py-8"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" /></div>
-          ) : progress.length === 0 ? (
-            <p className="text-text-dim text-sm text-center py-8">No progress data yet.</p>
-          ) : (
-            <div className="space-y-2 max-h-80 overflow-y-auto">
-              {progress.map((p: any, i: number) => (
-                <div key={i} className="flex items-center justify-between py-2.5 px-3 bg-surface-2 rounded-xl border border-border/50">
-                  <div>
-                    <p className="text-sm font-medium text-text-main">{p.username}</p>
-                    <p className="text-[11px] text-text-dim">{p.email}</p>
+      {/* GRID VIEW */}
+      {view === "grid" && filtered.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          {filtered.map((v, i) => {
+            const thumb = ytThumb(v.youtube_url);
+            const assignedP = (v.assigned_count || 0) > 0 ? Math.round(((v.completed_count || 0) / (v.assigned_count || 1)) * 100) : 0;
+            return (
+              <div key={v.id} className="bg-surface-1 border border-border rounded-2xl overflow-hidden shadow-sm card-hover group animate-fadeInUp" style={{ animationDelay: `${i * 60}ms` }}>
+                {/* Thumbnail */}
+                <div className="relative h-40 bg-surface-3 overflow-hidden">
+                  {thumb ? <img src={thumb} alt={v.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined text-5xl text-text-dim">smart_display</span></div>}
+                  <div className="absolute top-3 right-3 flex gap-1.5">
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-black/60 text-white backdrop-blur-sm">{fmtDuration(v.duration_seconds)}</span>
+                    {v.category && <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-primary/80 text-white backdrop-blur-sm">{v.category}</span>}
                   </div>
-                  <div className="flex items-center gap-3 text-right">
+                  <div className="absolute bottom-3 left-3">
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold backdrop-blur-sm ${v.is_active ? "bg-emerald-500/80 text-white" : "bg-red-500/80 text-white"}`}>
+                      {v.is_active ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-text-main line-clamp-2 leading-snug">{v.title}</h3>
+
+                  {/* Stats Row */}
+                  <div className="flex items-center gap-4 text-[11px] text-text-dim">
+                    <span className="flex items-center gap-1"><span className="material-symbols-outlined text-xs">group</span>{v.assigned_count || 0} assigned</span>
+                    <span className="flex items-center gap-1"><span className="material-symbols-outlined text-xs">check_circle</span>{v.completed_count || 0} done</span>
+                  </div>
+
+                  {/* Progress Bar */}
+                  {(v.assigned_count || 0) > 0 && (
                     <div>
-                      <div className="w-20 h-1.5 bg-surface-3 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${p.is_completed ? "bg-emerald-500" : "bg-primary"}`} style={{ width: `${p.completion_percent}%` }} />
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] text-text-dim">Completion</span>
+                        <span className="text-[10px] font-semibold text-text-muted">{assignedP}%</span>
                       </div>
-                      <p className="text-[10px] text-text-dim mt-0.5">{p.completion_percent}%{p.is_completed && " ✓"}</p>
+                      <div className="w-full h-1.5 bg-surface-3 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-primary to-violet-400 rounded-full animate-bar-grow" style={{ width: `${assignedP}%` }} />
+                      </div>
                     </div>
-                    <div className="text-[10px] text-text-dim w-12">{Math.floor((p.watched_seconds || 0) / 60)}m</div>
-                    {p.cheat_flags > 0 && (
-                      <span className="text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">⚠ {p.cheat_flags}</span>
-                    )}
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <button onClick={() => openProgress(v)}
+                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-primary/5 text-primary hover:bg-primary/12 rounded-xl text-xs font-semibold transition-all border border-primary/10">
+                      <span className="material-symbols-outlined text-sm">monitoring</span>Progress
+                    </button>
+                    <button onClick={() => { setSelectedVideo(v); setShowAssign(true); setAssignMsg(null); }}
+                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-blue-500/5 text-blue-600 hover:bg-blue-500/12 rounded-xl text-xs font-semibold transition-all border border-blue-500/10">
+                      <span className="material-symbols-outlined text-sm">assignment_add</span>Assign
+                    </button>
+                    <button onClick={() => handleDelete(v.id)}
+                      className="p-2 text-text-dim hover:text-red-500 hover:bg-red-500/5 rounded-xl transition-all">
+                      <span className="material-symbols-outlined text-base">delete</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* LIST VIEW */}
+      {view === "list" && filtered.length > 0 && (
+        <div className="bg-surface-1 border border-border rounded-2xl overflow-hidden shadow-sm">
+          <div className="grid grid-cols-[1fr_100px_80px_80px_80px_120px] gap-4 px-5 py-3 text-[10px] font-semibold text-text-dim uppercase tracking-wider border-b border-border">
+            <span>Video</span><span className="text-center">Duration</span><span className="text-center">Assigned</span><span className="text-center">Done</span><span className="text-center">Status</span><span className="text-right">Actions</span>
+          </div>
+          {filtered.map((v, i) => (
+            <div key={v.id} className="grid grid-cols-[1fr_100px_80px_80px_80px_120px] gap-4 items-center px-5 py-3.5 border-b border-border/40 hover:bg-primary/[0.02] transition-colors animate-fadeInUp" style={{ animationDelay: `${i * 30}ms` }}>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-14 h-9 rounded-lg bg-surface-3 overflow-hidden flex-shrink-0">
+                  {ytThumb(v.youtube_url) ? <img src={ytThumb(v.youtube_url)!} alt="" className="w-full h-full object-cover" /> :
+                    <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined text-sm text-text-dim">smart_display</span></div>}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-text-main truncate">{v.title}</p>
+                  <p className="text-[10px] text-text-dim truncate">{v.category || "Uncategorized"}</p>
+                </div>
+              </div>
+              <span className="text-xs text-text-muted text-center">{fmtDuration(v.duration_seconds)}</span>
+              <span className="text-xs font-semibold text-text-main text-center">{v.assigned_count || 0}</span>
+              <span className="text-xs font-semibold text-emerald-600 text-center">{v.completed_count || 0}</span>
+              <div className="text-center">
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${v.is_active ? "bg-emerald-500/8 text-emerald-600 border border-emerald-500/12" : "bg-red-500/8 text-red-500 border border-red-500/12"}`}>{v.is_active ? "Active" : "Off"}</span>
+              </div>
+              <div className="flex items-center justify-end gap-1">
+                <button onClick={() => openProgress(v)} className="p-1.5 rounded-lg hover:bg-primary/8 text-text-dim hover:text-primary transition-all" title="Progress">
+                  <span className="material-symbols-outlined text-base">monitoring</span>
+                </button>
+                <button onClick={() => { setSelectedVideo(v); setShowAssign(true); setAssignMsg(null); }} className="p-1.5 rounded-lg hover:bg-blue-500/8 text-text-dim hover:text-blue-600 transition-all" title="Assign">
+                  <span className="material-symbols-outlined text-base">assignment_add</span>
+                </button>
+                <button onClick={() => handleDelete(v.id)} className="p-1.5 rounded-lg hover:bg-red-500/8 text-text-dim hover:text-red-500 transition-all" title="Delete">
+                  <span className="material-symbols-outlined text-base">delete</span>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Create Video Modal ── */}
+      {showCreate && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn" onClick={() => setShowCreate(false)}>
+          <div className="bg-surface-1 border border-border rounded-2xl shadow-2xl w-full max-w-lg animate-modal-in" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center"><span className="material-symbols-outlined text-primary text-lg">video_call</span></div>
+                <h3 className="text-base font-bold text-text-main">Create Video</h3>
+              </div>
+              <button onClick={() => setShowCreate(false)} className="p-1.5 rounded-lg hover:bg-surface-2 text-text-dim hover:text-text-main transition-colors"><span className="material-symbols-outlined">close</span></button>
+            </div>
+            <div className="p-5 space-y-4">
+              {[
+                { label: "Title", value: cTitle, onChange: setCTitle, placeholder: "Video title…", icon: "title", type: "text" },
+                { label: "YouTube URL", value: cUrl, onChange: setCUrl, placeholder: "https://youtube.com/watch?v=…", icon: "link", type: "text" },
+                { label: "Category", value: cCategory, onChange: setCCategory, placeholder: "e.g. Python, JavaScript", icon: "category", type: "text" },
+              ].map((f) => (
+                <div key={f.label}>
+                  <label className="text-[10px] text-text-dim uppercase tracking-[0.15em] font-semibold block mb-1.5">{f.label}</label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-dim text-base">{f.icon}</span>
+                    <input value={f.value} onChange={(e) => f.onChange(e.target.value)} placeholder={f.placeholder} type={f.type}
+                      className="w-full bg-surface-1 border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-text-main placeholder:text-text-dim focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all" />
                   </div>
                 </div>
               ))}
+              <div>
+                <label className="text-[10px] text-text-dim uppercase tracking-[0.15em] font-semibold block mb-1.5">Duration (seconds)</label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-dim text-base">timer</span>
+                  <input type="number" value={cDuration} onChange={(e) => setCDuration(Number(e.target.value))} placeholder="300"
+                    className="w-full bg-surface-1 border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-text-main placeholder:text-text-dim focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all" />
+                </div>
+              </div>
+              {cUrl && ytThumb(cUrl) && (
+                <div className="rounded-xl overflow-hidden border border-border">
+                  <img src={ytThumb(cUrl)!} alt="Preview" className="w-full h-32 object-cover" />
+                </div>
+              )}
             </div>
-          )}
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-function Modal({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) {
-  return (
-    <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-surface-1 border border-border rounded-2xl w-full max-w-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-5 border-b border-border">
-          <h3 className="font-bold text-text-main">{title}</h3>
-          <button onClick={onClose} className="p-1.5 hover:bg-surface-2 rounded-lg transition-colors">
-            <span className="material-symbols-outlined text-text-dim text-lg">close</span>
-          </button>
+            <div className="flex justify-end gap-2 p-5 border-t border-border">
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2.5 text-sm text-text-muted hover:text-text-main rounded-xl hover:bg-surface-2 transition-colors">Cancel</button>
+              <button onClick={handleCreate} disabled={!cTitle || !cUrl || creating}
+                className="px-5 py-2.5 bg-gradient-to-r from-primary to-violet-500 hover:from-primary-hover hover:to-violet-600 text-white rounded-xl text-sm font-semibold transition-all shadow-sm shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5">
+                {creating ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <span className="material-symbols-outlined text-base">add_circle</span>}
+                Create
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="p-5">{children}</div>
-      </div>
-    </div>
-  );
-}
+      )}
 
-function Field({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
-  return (
-    <div>
-      <label className="text-xs text-text-dim mb-1 block font-medium">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
+      {/* ── Assign Video Modal ── */}
+      {showAssign && selectedVideo && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn" onClick={() => setShowAssign(false)}>
+          <div className="bg-surface-1 border border-border rounded-2xl shadow-2xl w-full max-w-lg animate-modal-in" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <div>
+                <h3 className="text-base font-bold text-text-main">Assign Video</h3>
+                <p className="text-xs text-text-dim mt-0.5 truncate max-w-[300px]">{selectedVideo.title}</p>
+              </div>
+              <button onClick={() => setShowAssign(false)} className="p-1.5 rounded-lg hover:bg-surface-2 text-text-dim hover:text-text-main transition-colors"><span className="material-symbols-outlined">close</span></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-[10px] text-text-dim uppercase tracking-[0.15em] font-semibold block mb-2">Target</label>
+                <div className="flex gap-2">
+                  {(["all", "specific"] as const).map((m) => (
+                    <button key={m} onClick={() => setAssignMode(m)}
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all border flex items-center justify-center gap-1.5 ${
+                        assignMode === m ? "bg-primary/8 text-primary border-primary/15 shadow-sm" : "bg-surface-2 text-text-muted border-border"
+                      }`}>
+                      <span className="material-symbols-outlined text-sm">{m === "all" ? "groups" : "person"}</span>
+                      {m === "all" ? "All Users" : "Specific"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {assignMode === "specific" && (
+                <div>
+                  <label className="text-[10px] text-text-dim uppercase tracking-[0.15em] font-semibold block mb-1.5">User IDs (comma-separated)</label>
+                  <input value={assignUserIds} onChange={(e) => setAssignUserIds(e.target.value)} placeholder="1, 2, 3"
+                    className="w-full bg-surface-1 border border-border rounded-xl px-4 py-2.5 text-sm text-text-main placeholder:text-text-dim focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all" />
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-text-dim uppercase tracking-[0.15em] font-semibold block mb-1.5">Due Date</label>
+                  <input type="date" value={assignDueDate} onChange={(e) => setAssignDueDate(e.target.value)}
+                    className="w-full bg-surface-1 border border-border rounded-xl px-3 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-text-dim uppercase tracking-[0.15em] font-semibold block mb-1.5">Type</label>
+                  <div className="flex gap-2 mt-0.5">
+                    {[true, false].map((val) => (
+                      <button key={String(val)} onClick={() => setAssignMandatory(val)}
+                        className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all border ${
+                          assignMandatory === val ? "bg-primary/8 text-primary border-primary/15 shadow-sm" : "bg-surface-2 text-text-muted border-border"
+                        }`}>{val ? "Mandatory" : "Optional"}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {assignMsg && (
+                <div className={`p-3.5 rounded-xl text-sm font-medium flex items-center gap-2 animate-scaleIn ${
+                  assignMsg.type === "success" ? "bg-emerald-500/8 text-emerald-600 border border-emerald-500/12" : "bg-red-500/8 text-red-500 border border-red-500/12"
+                }`}>
+                  <span className="material-symbols-outlined text-lg">{assignMsg.type === "success" ? "check_circle" : "error"}</span>
+                  {assignMsg.text}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 p-5 border-t border-border">
+              <button onClick={() => setShowAssign(false)} className="px-4 py-2.5 text-sm text-text-muted hover:text-text-main rounded-xl hover:bg-surface-2 transition-colors">Cancel</button>
+              <button onClick={handleAssign} disabled={assigning}
+                className="px-5 py-2.5 bg-gradient-to-r from-primary to-violet-500 hover:from-primary-hover hover:to-violet-600 text-white rounded-xl text-sm font-semibold transition-all shadow-sm shadow-primary/20 disabled:opacity-50 flex items-center gap-1.5">
+                {assigning ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <span className="material-symbols-outlined text-base">assignment_add</span>}
+                Assign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Progress Modal ── */}
+      {showProgress && selectedVideo && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn" onClick={() => setShowProgress(false)}>
+          <div className="bg-surface-1 border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col animate-modal-in" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <div>
+                <h3 className="text-base font-bold text-text-main">Video Progress</h3>
+                <p className="text-xs text-text-dim mt-0.5 truncate max-w-[400px]">{selectedVideo.title}</p>
+              </div>
+              <button onClick={() => setShowProgress(false)} className="p-1.5 rounded-lg hover:bg-surface-2 text-text-dim hover:text-text-main transition-colors"><span className="material-symbols-outlined">close</span></button>
+            </div>
+            <div className="flex-1 overflow-y-auto admin-scroll">
+              {progressLoading ? (
+                <div className="flex items-center justify-center py-16"><div className="w-7 h-7 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
+              ) : progressData.length === 0 ? (
+                <div className="py-16 text-center">
+                  <span className="material-symbols-outlined text-4xl text-text-dim mb-3">pending</span>
+                  <p className="text-text-dim text-sm">No one has started watching yet</p>
+                </div>
+              ) : (
+                <>
+                  {/* Quick Stats */}
+                  <div className="grid grid-cols-3 gap-3 p-5 border-b border-border">
+                    <div className="bg-surface-2 rounded-xl p-3 text-center">
+                      <p className="text-lg font-bold text-text-main">{progressData.length}</p>
+                      <p className="text-[10px] text-text-dim uppercase tracking-wider">Viewers</p>
+                    </div>
+                    <div className="bg-surface-2 rounded-xl p-3 text-center">
+                      <p className="text-lg font-bold text-emerald-600">{progressData.filter((p: any) => p.is_completed).length}</p>
+                      <p className="text-[10px] text-text-dim uppercase tracking-wider">Completed</p>
+                    </div>
+                    <div className="bg-surface-2 rounded-xl p-3 text-center">
+                      <p className="text-lg font-bold text-red-500">{progressData.reduce((s: number, p: any) => s + (p.cheat_flags || 0), 0)}</p>
+                      <p className="text-[10px] text-text-dim uppercase tracking-wider">Flags</p>
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-border/40">
+                    {progressData.map((p: any, i: number) => (
+                      <div key={i} className="flex items-center gap-4 px-5 py-3.5 hover:bg-primary/[0.02] transition-colors animate-fadeInUp" style={{ animationDelay: `${i * 30}ms` }}>
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-violet-400 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+                          {p.username?.charAt(0)?.toUpperCase() || "U"}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-text-main">{p.username || `User #${p.user_id}`}</p>
+                          <div className="flex items-center gap-3 mt-1">
+                            <div className="flex-1 h-1.5 bg-surface-3 rounded-full overflow-hidden max-w-[200px]">
+                              <div className={`h-full rounded-full ${p.is_completed ? "bg-emerald-500" : "bg-gradient-to-r from-primary to-violet-400"}`} style={{ width: `${p.completion_percent}%` }} />
+                            </div>
+                            <span className="text-[10px] font-semibold text-text-muted">{p.completion_percent}%</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-[10px] text-text-dim">{Math.floor(p.watched_seconds / 60)}m</span>
+                          {p.is_completed && <span className="material-symbols-outlined text-emerald-500 text-base">check_circle</span>}
+                          {p.cheat_flags > 0 && (
+                            <span className="text-[10px] text-red-500 bg-red-500/5 px-2 py-0.5 rounded-lg border border-red-500/12 font-bold flex items-center gap-0.5">
+                              <span className="material-symbols-outlined text-xs">flag</span>{p.cheat_flags}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
