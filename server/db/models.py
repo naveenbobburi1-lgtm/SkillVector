@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, Text
 import sqlalchemy.orm
 import sqlalchemy
 from sqlalchemy.sql import func
@@ -13,6 +13,7 @@ class UserDB(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     profile = sqlalchemy.orm.relationship("ProfileDB", back_populates="user", uselist=False)
@@ -143,5 +144,77 @@ class PasswordResetToken(Base):
     otp_code = Column(String, nullable=False)  # 6-digit OTP
     expires_at = Column(DateTime(timezone=True), nullable=False)
     used = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+# ============================================================
+# ADMIN PANEL MODELS
+# ============================================================
+
+class VideoAssignment(Base):
+    __tablename__ = "video_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    youtube_url = Column(String, nullable=False)
+    youtube_video_id = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    duration_seconds = Column(Integer, nullable=False)  # Expected video duration
+    category = Column(String, nullable=True)  # e.g., "AI/ML", "Web Dev", etc.
+    assigned_by = Column(Integer, sqlalchemy.ForeignKey("users.id"), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    progress_records = sqlalchemy.orm.relationship("VideoProgress", back_populates="assignment", cascade="all, delete-orphan")
+    user_assignments = sqlalchemy.orm.relationship("UserVideoAssignment", back_populates="assignment", cascade="all, delete-orphan")
+
+
+class UserVideoAssignment(Base):
+    """Links a video assignment to specific users (or all users if user_id is NULL)"""
+    __tablename__ = "user_video_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    video_id = Column(Integer, sqlalchemy.ForeignKey("video_assignments.id"), nullable=False)
+    user_id = Column(Integer, sqlalchemy.ForeignKey("users.id"), nullable=True)  # NULL = assigned to all
+    assigned_at = Column(DateTime(timezone=True), server_default=func.now())
+    due_date = Column(DateTime(timezone=True), nullable=True)
+    is_mandatory = Column(Boolean, default=True)
+
+    assignment = sqlalchemy.orm.relationship("VideoAssignment", back_populates="user_assignments")
+
+
+class VideoProgress(Base):
+    """Tracks legitimate video watching progress with anti-cheat"""
+    __tablename__ = "video_progress"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, sqlalchemy.ForeignKey("users.id"), nullable=False)
+    video_id = Column(Integer, sqlalchemy.ForeignKey("video_assignments.id"), nullable=False)
+    watched_seconds = Column(Integer, default=0)  # Total verified watch time
+    max_position = Column(Integer, default=0)  # Furthest legitimate position reached
+    completion_percent = Column(Float, default=0.0)
+    is_completed = Column(Boolean, default=False)
+    watch_sessions = Column(Text, nullable=True)  # JSON: list of {start, end, duration, timestamp}
+    last_heartbeat = Column(DateTime(timezone=True), nullable=True)
+    total_pauses = Column(Integer, default=0)
+    cheat_flags = Column(Integer, default=0)  # Number of suspicious events detected
+    started_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    assignment = sqlalchemy.orm.relationship("VideoAssignment", back_populates="progress_records")
+
+
+class AdminActivityLog(Base):
+    """Audit log for admin actions"""
+    __tablename__ = "admin_activity_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    admin_id = Column(Integer, sqlalchemy.ForeignKey("users.id"), nullable=False)
+    action = Column(String, nullable=False)  # e.g., "assign_video", "toggle_user", etc.
+    target_type = Column(String, nullable=True)  # "user", "video", etc.
+    target_id = Column(Integer, nullable=True)
+    details = Column(Text, nullable=True)  # JSON with extra context
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
