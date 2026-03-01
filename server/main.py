@@ -58,10 +58,10 @@ async def read_root():
 
 @app.post("/register")
 async def register_user(user:schemas.UserCreate,db:Session=Depends(get_db)):
+    db_user = db.query(UserDB).filter(UserDB.email == user.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
     try:
-        db_user = db.query(UserDB).filter(UserDB.email == user.email).first()
-        if db_user:
-            return {"error": "Email already registered"}
         new_user = UserDB(
             username=user.username,
             email=user.email,
@@ -70,15 +70,17 @@ async def register_user(user:schemas.UserCreate,db:Session=Depends(get_db)):
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
-    except Exception as e :
-        print(str(e))
-        return {"error": str(e)}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Registration failed")
     return {"message": "User registered successfully", "user_id": new_user.id}
 
 @app.post("/login")
 async def login_user(user:schemas.UserLogin,db:Session=Depends(get_db)):
     db_user=db.query(UserDB).filter(UserDB.email==user.email).first()
-    if not db_user or verify_password(user.password,db_user.hashed_password) == False:
+    if not db_user:
+        raise HTTPException(status_code=401,detail="Invalid credentials")
+    if not verify_password(user.password, db_user.hashed_password):
         raise HTTPException(status_code=401,detail="Invalid credentials")
     access_token=create_access_token(data={"sub":db_user.email})   
     return {"access_token":access_token,"token_type":"bearer","user_id":db_user.id}
