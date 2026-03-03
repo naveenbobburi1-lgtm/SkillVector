@@ -49,7 +49,11 @@ def load_onet():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000","http://localhost:3001"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        os.getenv("FRONTEND_URL", ""),        # e.g. https://your-app.vercel.app
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

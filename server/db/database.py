@@ -1,9 +1,16 @@
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy import create_engine
 from typing import Generator
+import os
+from dotenv import load_dotenv
+load_dotenv()
+db_uri = os.getenv("DATABASE_URL", "postgresql://postgres:06122004@localhost:5432/products")
 
-db_uri = "postgresql://postgres:06122004@localhost:5432/products"
-engine = create_engine(db_uri, echo=True)
+# Supabase (and some platforms) may give 'postgres://' — SQLAlchemy requires 'postgresql://'
+if db_uri.startswith("postgres://"):
+    db_uri = db_uri.replace("postgres://", "postgresql://", 1)
+
+engine = create_engine(db_uri, echo=False)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
