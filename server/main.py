@@ -47,13 +47,20 @@ def load_onet():
     except Exception as e:
         print("❌ Failed to load O*NET:", e)
 
+allowed_origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+]
+frontend_url = os.getenv("FRONTEND_URL", "")
+if frontend_url:
+    for url in frontend_url.split(","):
+        url = url.strip()
+        if url:
+            allowed_origins.append(url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        os.getenv("FRONTEND_URL", ""),        # e.g. https://your-app.vercel.app
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

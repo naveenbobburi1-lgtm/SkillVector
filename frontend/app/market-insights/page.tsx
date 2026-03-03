@@ -60,7 +60,7 @@ export default function MarketInsightsPage() {
                     {error.includes("server") && (
                         <div className="mb-6 p-3 bg-warning/10 border border-warning/20 rounded-lg text-sm text-text-muted text-left">
                             <p className="font-medium text-warning mb-1">💡 Tip:</p>
-                            <p>Make sure the backend server is running at <code className="text-primary">http://localhost:8000</code></p>
+                            <p>Make sure the backend server is reachable at <code className="text-primary">{process.env.NEXT_PUBLIC_API_URL || "https://skillvector-odaw.onrender.com"}</code></p>
                         </div>
                     )}
                     <Link
