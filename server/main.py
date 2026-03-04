@@ -260,6 +260,8 @@ async def generate_learning_path(
     # Parse JSON fields safely
     skills = json.loads(profile.skills) if profile.skills else []
     industries = json.loads(profile.preferred_industries) if profile.preferred_industries else []
+    learning_formats = json.loads(profile.learning_format) if profile.learning_format else []
+    instruction_language = profile.language or "English"
 
     # ==================================================
     # RAG PIPELINE 
@@ -278,8 +280,12 @@ async def generate_learning_path(
     prompt = f"""
 You are an AI system that generates structured learning paths.
 
-CRITICAL INSTRUCTION:
+CRITICAL INSTRUCTIONS:
 - The generated path MUST fit exactly within the 'Target Timeline' specified by the user (e.g., if target is 3 months, total duration must be approx 3 months). Adjust the scope and depth of modules to fit this constraint.
+- RESOURCE LANGUAGE: The user prefers learning resources in '{instruction_language}'. When selecting from SOURCES, prioritize courses, videos, articles, and tutorials that are in {instruction_language} or have {instruction_language} subtitles/dubbing available. If {instruction_language} resources are unavailable in SOURCES, fall back to English. All learning path structure text (phase names, why_this_phase, topics, objectives, tasks, project descriptions) must stay in English.
+- CONTENT FORMAT: The user prefers these learning formats: {', '.join(learning_formats) if learning_formats else 'Any'}. Prioritize resources that match — if 'Video / Online' is preferred, favor video courses and YouTube playlists; if 'Text / Reading', favor articles and books; if 'Hands-on', favor interactive platforms and project-based resources.
+- INDUSTRY CONTEXT: The user is targeting the {', '.join(industries) if industries else 'general'} industry/industries. Tailor examples, projects, and use cases to these industries wherever relevant.
+- INCOME TARGET: The user targets {profile.expected_income or 'unspecified'} annual income. Recommend resources and career milestones appropriate for that salary bracket.
 
 IMPORTANT INSTRUCTIONS (STRICT):
 - Use ONLY the resources provided in the SOURCES section.
@@ -299,12 +305,14 @@ USER DETAILS:
 - Current Education: {profile.education_level}
 - Current Status: {profile.current_status}
 - Location: {profile.location}
-- Existing Skills: {', '.join(skills)}
-- Preferred Industries: {', '.join(industries)}
+- Existing Skills: {', '.join(skills) if skills else 'None'}
+- Preferred Industries: {', '.join(industries) if industries else 'Not specified'}
 - Expected Income: {profile.expected_income}
 - Willing to Relocate: {profile.relocation}
 - Learning Pace: {profile.learning_pace}
 - Hours per Week: {profile.hours_per_week}
+- Content Format Preference: {', '.join(learning_formats) if learning_formats else 'Not specified'}
+- Instruction Language: {instruction_language}
 - Budget Sensitivity: {profile.budget_sensitivity}
 - Target Timeline: {profile.timeline}
 - User Email: {current_user.email}
@@ -359,11 +367,11 @@ CRITICAL CONTENT REQUIREMENTS:
 1. "why_this_phase": Explain why this phase is important and correctly placed.
 2. "topics": 5–8 detailed sub-topics per phase.
 3. "weekly_breakdown": Break down each phase into weekly focused goals (duration_weeks number of weeks). Each week should have specific learning objectives and practice tasks.
-4. "resources": EXACTLY 6-8 per phase:
-   - 2-3 Courses (Coursera / Udemy / edX / YouTube)
-   - 2-3 Articles or Blogs
-   - 1-2 Books
-5. "projects": MINIMUM 3-5 hands-on projects per phase with varying difficulty levels (Easy/Medium/Hard)
+4. "resources": EXACTLY 6-8 per phase. Match the user's preferred content format ({', '.join(learning_formats) if learning_formats else 'any format'}):
+   - 2-3 Courses (Coursera / Udemy / edX / YouTube) — prioritize if user prefers Video / Online
+   - 2-3 Articles or Blogs — prioritize if user prefers Text / Reading
+   - 1-2 Books — include if user prefers Text / Reading
+5. "projects": MINIMUM 3-5 hands-on projects per phase with varying difficulty levels (Easy/Medium/Hard). Tie projects to the user's target industries: {', '.join(industries) if industries else 'general domain'}.
 """
 
     response = client.chat.completions.create(
