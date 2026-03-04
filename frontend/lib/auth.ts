@@ -8,6 +8,25 @@ export const setToken = (token: string) => {
     }
 };
 
+/**
+ * Exchange a Google ID token (credential) for a Skillvector JWT.
+ * Returns { access_token, token_type, user_id, is_new_user, name, picture }
+ */
+export async function loginWithGoogle(credential: string) {
+    const response = await fetch(`${API_BASE_URL}/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Google sign-in failed");
+    }
+
+    return response.json();
+}
+
 export const getToken = () => {
     if (typeof window !== "undefined") {
         return localStorage.getItem("access_token");

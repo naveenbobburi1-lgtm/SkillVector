@@ -120,6 +120,13 @@ export default function Overlay() {
                     />
                 ))}
             </div>
+
+            {/* Developer Credits */}
+            <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                <p className="text-[10px] text-black/30 font-mono tracking-widest uppercase">
+                    Developed by B.Pavan &nbsp;&middot;&nbsp; A.Abhinav &nbsp;&middot;&nbsp; B.Naveen &nbsp;&middot;&nbsp; K.Krishna Teja
+                </p>
+            </div>
         </div>
     )
 }
