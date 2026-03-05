@@ -8,15 +8,28 @@ load_dotenv()
 def generate_search_queries(profile) -> list[str]:
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
+    industries = []
+    try:
+        if profile.preferred_industries:
+            industries = json.loads(profile.preferred_industries)
+    except Exception:
+        pass
+
+    language = getattr(profile, "language", None) or "English"
+
     prompt = f"""
 Generate 8–10 focused web search queries to find learning resources.
 
 Target role: {profile.desired_role}
 Existing skills: {profile.skills}
+Preferred industries: {', '.join(industries) if industries else 'general'}
+Instruction language: {language}
 
 Rules:
 - Include YouTube queries
 - Include beginner and advanced queries
+- Include industry-specific queries (e.g., "{profile.desired_role} in {industries[0] if industries else 'tech'}")
+- If instruction language is not English, include 1-2 queries like "{profile.desired_role} tutorials in {language}"
 - Return ONLY a JSON array of strings
 """
 

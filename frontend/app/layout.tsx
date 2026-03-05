@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import GoogleAuthWrapper from "@/components/GoogleAuthWrapper";
+import Footer from "@/components/Footer";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -28,7 +30,10 @@ export default function RootLayout({
       <body
         className={`${inter.variable} antialiased bg-background text-text-main min-h-screen selection:bg-primary selection:text-white`}
       >
-        {children}
+        <GoogleAuthWrapper>
+          {children}
+          <Footer />
+        </GoogleAuthWrapper>
       </body>
     </html>
   );

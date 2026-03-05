@@ -11,7 +11,7 @@ class UserDB(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
+    hashed_password = Column(String, nullable=True)  # NULL for Google OAuth users
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -135,18 +135,6 @@ class ActiveTest(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
-class PasswordResetToken(Base):
-    __tablename__ = "password_reset_tokens"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, sqlalchemy.ForeignKey("users.id"), nullable=False)
-    email = Column(String, nullable=False)  # Store email for verification
-    otp_code = Column(String, nullable=False)  # 6-digit OTP
-    expires_at = Column(DateTime(timezone=True), nullable=False)
-    used = Column(Boolean, default=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-
 # ============================================================
 # ADMIN PANEL MODELS
 # ============================================================
@@ -216,5 +204,17 @@ class AdminActivityLog(Base):
     target_type = Column(String, nullable=True)  # "user", "video", etc.
     target_id = Column(Integer, nullable=True)
     details = Column(Text, nullable=True)  # JSON with extra context
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MarketInsightsCache(Base):
+    """Caches market insights per user+role to avoid repeated LLM calls. TTL-based."""
+    __tablename__ = "market_insights_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, nullable=False)
+    role = Column(String, nullable=False)
+    gap_analysis = Column(Text, nullable=False)      # JSON: {role, soc_code, insights: {...}}
+    profile_insights = Column(Text, nullable=False)   # JSON: {trending_skills, role_growth, ...}
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

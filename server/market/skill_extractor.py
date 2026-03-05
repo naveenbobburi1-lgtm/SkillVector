@@ -1,22 +1,74 @@
-def extract_top_skills(soc_code: str, skills_df, top_n=10):
-    filtered = skills_df[
-        (skills_df["O*NET-SOC Code"] == soc_code) &
-        (skills_df["Scale ID"] == "IM")  # Importance
-    ]
+def extract_top_skills(soc_code: str, tech_skills_df, top_n=15):
+    """
+    Extract top technology skills for a given SOC code from O*NET Technology Skills data.
+    Prioritises 'Hot Technology' items, then 'In Demand', then alphabetical.
+    Returns a deduplicated list of concrete tool / technology names.
+    """
+    filtered = tech_skills_df[tech_skills_df["O*NET-SOC Code"] == soc_code]
 
-    filtered = filtered.sort_values("Data Value", ascending=False)
+    if filtered.empty:
+        # Try partial SOC match (e.g. "15-1252" matches "15-1252.00")
+        soc_prefix = soc_code.split(".")[0]
+        filtered = tech_skills_df[tech_skills_df["O*NET-SOC Code"].str.startswith(soc_prefix)]
 
-    skills = filtered["Element Name"].head(top_n).tolist()
-    
-    # If no skills found for this SOC code, return fallback skills
-    if not skills:
-        skills = [
-            "Communication", "Problem Solving", "Critical Thinking",
-            "Teamwork", "Leadership", "Technical Proficiency",
-            "Data Analysis", "Project Management"
-        ][:top_n]
-    
+    if filtered.empty:
+        return []
+
+    # Sort: Hot Technology first, then In Demand, then alphabetical
+    sort_key = filtered.assign(
+        _hot=filtered["Hot Technology"].map({"Y": 0, "N": 1}).fillna(1),
+        _demand=filtered["In Demand"].map({"Y": 0, "N": 1}).fillna(1),
+    )
+    sort_key = sort_key.sort_values(["_hot", "_demand", "Example"])
+
+    # Deduplicate by lowercased Example (keep first / highest priority)
+    seen = set()
+    skills = []
+    for name in sort_key["Example"]:
+        key = name.strip().lower()
+        if key not in seen:
+            seen.add(key)
+            skills.append(name.strip())
+        if len(skills) >= top_n:
+            break
+
     return skills
+
+
+def extract_top_knowledge(soc_code: str, knowledge_df, top_n=8):
+    """Extract top knowledge domains for a SOC code, ranked by importance."""
+    filtered = knowledge_df[
+        (knowledge_df["O*NET-SOC Code"] == soc_code) &
+        (knowledge_df["Scale ID"] == "IM")
+    ]
+    if filtered.empty:
+        soc_prefix = soc_code.split(".")[0]
+        filtered = knowledge_df[
+            (knowledge_df["O*NET-SOC Code"].str.startswith(soc_prefix)) &
+            (knowledge_df["Scale ID"] == "IM")
+        ]
+    if filtered.empty:
+        return []
+    filtered = filtered.sort_values("Data Value", ascending=False).drop_duplicates("Element Name").head(top_n)
+    return [f"{row['Element Name']} (importance: {row['Data Value']:.1f}/5)" for _, row in filtered.iterrows()]
+
+
+def extract_top_activities(soc_code: str, activities_df, top_n=8):
+    """Extract top work activities for a SOC code, ranked by importance."""
+    filtered = activities_df[
+        (activities_df["O*NET-SOC Code"] == soc_code) &
+        (activities_df["Scale ID"] == "IM")
+    ]
+    if filtered.empty:
+        soc_prefix = soc_code.split(".")[0]
+        filtered = activities_df[
+            (activities_df["O*NET-SOC Code"].str.startswith(soc_prefix)) &
+            (activities_df["Scale ID"] == "IM")
+        ]
+    if filtered.empty:
+        return []
+    filtered = filtered.sort_values("Data Value", ascending=False).drop_duplicates("Element Name").head(top_n)
+    return [f"{row['Element Name']} (importance: {row['Data Value']:.1f}/5)" for _, row in filtered.iterrows()]
 
 
 def extract_skills_with_llm(role_name: str, top_n=10):
@@ -50,7 +102,7 @@ def extract_skills_with_llm(role_name: str, top_n=10):
         """
 
         response = client.chat.completions.create(
-            model="groq/compound",
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
             response_format={"type": "json_object"}

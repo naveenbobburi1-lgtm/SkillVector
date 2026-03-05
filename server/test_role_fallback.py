@@ -18,8 +18,8 @@ def test_role_matching():
     
     # Load O*NET data
     print("\n📊 Loading O*NET database...")
-    occupations, skills_df = load_onet_data()
-    print(f"✅ Loaded {len(occupations)} occupations")
+    occupations, skills_df, tech_skills_df, knowledge_df, activities_df = load_onet_data()
+    print(f"✅ Loaded {len(occupations)} occupations, {len(tech_skills_df)} technology skill rows")
     
     # Test cases: mix of roles that exist in O*NET and modern roles that don't
     test_roles = [
@@ -47,9 +47,9 @@ def test_role_matching():
             print(f"   SOC Code: {soc_code}")
             print(f"   Canonical Title: {canonical_role}")
             
-            # Get skills from O*NET
-            market_skills = extract_top_skills(soc_code, skills_df, top_n=5)
-            print(f"   Top Skills (O*NET): {', '.join(market_skills)}")
+            # Get skills from O*NET Technology Skills
+            market_skills = extract_top_skills(soc_code, tech_skills_df, top_n=5)
+            print(f"   Top Skills (O*NET Tech): {', '.join(market_skills)}")
         else:
             print(f"❌ NO O*NET MATCH - Using LLM Fallback")
             soc_code = "99-9999.00"

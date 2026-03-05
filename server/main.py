@@ -1,7 +1,7 @@
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from db.database import get_db,init_db
-from db.models import UserDB, UserProfile, ProfileDB, SkillDB, CertificationDB, CareerGoalDB, LearningPath, PasswordResetToken, PhaseProgress, TestAttempt, ActiveTest, VideoAssignment, UserVideoAssignment, VideoProgress, AdminActivityLog
+from db.models import UserDB, UserProfile, ProfileDB, SkillDB, CertificationDB, CareerGoalDB, LearningPath, PhaseProgress, TestAttempt, ActiveTest, VideoAssignment, UserVideoAssignment, VideoProgress, AdminActivityLog, MarketInsightsCache
 import schemas.UserSchemas as schemas
 import schemas.ProfileSchemas as profile_schemas
 from rag.retriever import clean_llm_json
@@ -20,7 +20,7 @@ from rag.query_planner import generate_search_queries
 from rag.batch_retriever import batch_retrieve
 from market.load_onet import load_onet_data
 from market.role_matcher import match_role_to_soc
-from market.skill_extractor import extract_top_skills, extract_skills_with_llm
+from market.skill_extractor import extract_top_skills, extract_skills_with_llm, extract_top_knowledge, extract_top_activities
 from market.insights_engine import generate_market_insights
 import market.role_matcher as role_matcher
 import market.insights_engine as insights_engine
@@ -33,6 +33,29 @@ def invalidate_learning_path(user_id: int, db: Session):
     db.query(LearningPath).filter(LearningPath.user_id == user_id).delete()
     db.commit()
 
+MARKET_INSIGHTS_TTL_HOURS = 24  # Cache market insights for 24 hours
+
+def invalidate_market_insights_cache(user_id: int, db: Session):
+    """Deletes cached market insights for a user to force regeneration."""
+    db.query(MarketInsightsCache).filter(MarketInsightsCache.user_id == user_id).delete()
+    db.commit()
+
+def get_valid_cache(user_id: int, role: str, db: Session):
+    """Returns cached market insights if within TTL and role matches, else None."""
+    cache = db.query(MarketInsightsCache).filter(
+        MarketInsightsCache.user_id == user_id,
+        MarketInsightsCache.role == role
+    ).first()
+    if not cache:
+        return None
+    age = datetime.now(timezone.utc) - cache.created_at.replace(tzinfo=timezone.utc)
+    if age > timedelta(hours=MARKET_INSIGHTS_TTL_HOURS):
+        # Expired — delete and return None
+        db.delete(cache)
+        db.commit()
+        return None
+    return cache
+
 app = FastAPI()
 print(os.getenv("SECRET_KEY"))
 ONET_CACHE = {}
@@ -40,10 +63,13 @@ ONET_CACHE = {}
 @app.on_event("startup")
 def load_onet():
     try:
-        occupations_df, skills_df = load_onet_data()
+        occupations_df, skills_df, tech_skills_df, knowledge_df, activities_df = load_onet_data()
         ONET_CACHE["occupations"] = occupations_df
         ONET_CACHE["skills"] = skills_df
-        print("✅ O*NET data loaded")
+        ONET_CACHE["tech_skills"] = tech_skills_df
+        ONET_CACHE["knowledge"] = knowledge_df
+        ONET_CACHE["activities"] = activities_df
+        print(f"✅ O*NET data loaded ({len(tech_skills_df)} tech skills, {len(knowledge_df)} knowledge, {len(activities_df)} activities)")
     except Exception as e:
         print("❌ Failed to load O*NET:", e)
 
@@ -93,6 +119,8 @@ async def login_user(user:schemas.UserLogin,db:Session=Depends(get_db)):
     db_user=db.query(UserDB).filter(UserDB.email==user.email).first()
     if not db_user:
         raise HTTPException(status_code=401,detail="Invalid credentials")
+    if not db_user.hashed_password or db_user.hashed_password == "google_oauth_user":
+        raise HTTPException(status_code=400,detail="This account uses Google Sign-In. Please sign in with Google.")
     if not verify_password(user.password, db_user.hashed_password):
         raise HTTPException(status_code=401,detail="Invalid credentials")
     if not db_user.is_active:
@@ -100,120 +128,76 @@ async def login_user(user:schemas.UserLogin,db:Session=Depends(get_db)):
     access_token=create_access_token(data={"sub":db_user.email})   
     return {"access_token":access_token,"token_type":"bearer","user_id":db_user.id}
 
-@app.post("/forgot-password")
-async def forgot_password(request: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
-    """Generate a 6-digit OTP and send it to the user's email."""
-    import smtplib
-    from email.mime.text import MIMEText
-    from email.mime.multipart import MIMEMultipart
-    import random
-    
-    db_user = db.query(UserDB).filter(UserDB.email == request.email).first()
-    
-    if not db_user:
-        raise HTTPException(status_code=404, detail="No account found with this email address")
-    
-    # Generate 6-digit OTP
-    otp_code = str(random.randint(100000, 999999))
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)  # OTP valid for 10 minutes
-    
-    # Send OTP via email FIRST (before saving to DB)
-    try:
-        smtp_email = os.getenv("SMTP_EMAIL")
-        smtp_password = os.getenv("SMTP_PASSWORD")
-        
-        msg = MIMEMultipart()
-        msg['From'] = smtp_email
-        msg['To'] = request.email
-        msg['Subject'] = "SkillVector - Password Reset OTP"
-        
-        body = f"""
-        <html>
-        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background: linear-gradient(135deg, #f97316, #ea580c); padding: 30px; text-align: center;">
-                <h1 style="color: white; margin: 0;">SkillVector</h1>
-            </div>
-            <div style="padding: 30px; background: #ffffff;">
-                <h2 style="color: #1f2937;">Password Reset Request</h2>
-                <p style="color: #4b5563;">Hello {db_user.username},</p>
-                <p style="color: #4b5563;">We received a request to reset your password. Use the OTP below to complete the process:</p>
-                <div style="background: #f3f4f6; padding: 20px; text-align: center; border-radius: 12px; margin: 20px 0;">
-                    <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #f97316;">{otp_code}</span>
-                </div>
-                <p style="color: #6b7280; font-size: 14px;">This OTP is valid for 10 minutes.</p>
-                <p style="color: #6b7280; font-size: 14px;">If you didn't request this, you can safely ignore this email.</p>
-            </div>
-            <div style="background: #f9fafb; padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
-                &copy; 2025 SkillVector Inc. All rights reserved.
-            </div>
-        </body>
-        </html>
-        """
-        
-        msg.attach(MIMEText(body, 'html'))
-        
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(smtp_email, smtp_password)
-        server.send_message(msg)
-        server.quit()
-        
-    except Exception as e:
-        print(f"Email sending failed: {e}")
-        raise HTTPException(status_code=500, detail="Failed to send OTP email. Please try again.")
-    
-    # Email sent successfully - now save OTP to database
-    # Invalidate any existing OTPs for this user
-    db.query(PasswordResetToken).filter(
-        PasswordResetToken.user_id == db_user.id,
-        PasswordResetToken.used == False
-    ).update({"used": True})
-    
-    # Store the OTP
-    reset_token = PasswordResetToken(
-        user_id=db_user.id,
-        email=request.email,
-        otp_code=otp_code,
-        expires_at=expires_at
-    )
-    db.add(reset_token)
-    db.commit()
-    
-    return {"message": "OTP sent to your email address", "email": request.email}
+@app.post("/auth/google")
+async def google_auth(request: Request, db: Session = Depends(get_db)):
+    """
+    Accept a Google OAuth2 access_token from the frontend (@react-oauth/google),
+    verify it by calling Google's userinfo endpoint, then create/find the user
+    and return a Skillvector JWT.
+    """
+    import httpx
+    body = await request.json()
+    access_token = body.get("credential")   # access_token passed as 'credential'
+    if not access_token:
+        raise HTTPException(status_code=400, detail="Missing Google access token")
 
-@app.post("/reset-password")
-async def reset_password(request: schemas.ResetPasswordRequest, db: Session = Depends(get_db)):
-    """Reset password using a valid OTP."""
-    # Find the OTP
-    reset_token = db.query(PasswordResetToken).filter(
-        PasswordResetToken.email == request.email,
-        PasswordResetToken.otp_code == request.otp_code,
-        PasswordResetToken.used == False
-    ).first()
-    
-    if not reset_token:
-        raise HTTPException(status_code=400, detail="Invalid OTP code")
-    
-    # Check if OTP is expired
-    if datetime.now(timezone.utc) > reset_token.expires_at:
-        reset_token.used = True
-        db.commit()
-        raise HTTPException(status_code=400, detail="OTP has expired. Please request a new one.")
-    
-    # Get the user
-    db_user = db.query(UserDB).filter(UserDB.id == reset_token.user_id).first()
-    if not db_user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Update the password
-    db_user.hashed_password = hash_password(request.new_password)
-    
-    # Mark OTP as used
-    reset_token.used = True
-    
-    db.commit()
-    
-    return {"message": "Password has been reset successfully"}
+    # Verify token by fetching userinfo from Google (server-side validation)
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=10,
+            )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=401, detail="Invalid or expired Google token")
+        idinfo = resp.json()
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="Could not reach Google servers")
+
+    email: str = idinfo.get("email", "")
+    name: str = idinfo.get("name") or email.split("@")[0]
+    picture: str = idinfo.get("picture", "")
+
+    if not email:
+        raise HTTPException(status_code=400, detail="Could not retrieve email from Google token")
+
+    # Find or create user
+    user = db.query(UserDB).filter(UserDB.email == email).first()
+    is_new_user = False
+    if not user:
+        is_new_user = True
+        base_username = name[:50]
+        username = base_username
+        counter = 1
+        while db.query(UserDB).filter(UserDB.username == username).first():
+            username = f"{base_username}{counter}"
+            counter += 1
+        user = UserDB(
+            username=username,
+            email=email,
+            hashed_password="google_oauth_user",
+        )
+        db.add(user)
+        try:
+            db.commit()
+            db.refresh(user)
+        except Exception:
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Failed to create user")
+
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Your account has been suspended. Contact an administrator.")
+
+    skillvector_token = create_access_token(data={"sub": user.email})
+    return {
+        "access_token": skillvector_token,
+        "token_type": "bearer",
+        "user_id": user.id,
+        "is_new_user": is_new_user,
+        "name": user.username,
+        "picture": picture,
+    }
 
 @app.get("/market-insights-test")
 async def market_insights(db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
@@ -222,7 +206,7 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
             raise HTTPException(status_code=500, detail="O*NET data not loaded")
 
         occupations_df = ONET_CACHE["occupations"]
-        skills_df = ONET_CACHE["skills"]
+        tech_skills_df = ONET_CACHE["tech_skills"]
 
         profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
         if not profile:
@@ -231,18 +215,27 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
         user_role = profile.desired_role
         user_skills = json.loads(profile.skills) if profile.skills else []
 
+        # Check cache first
+        cache = get_valid_cache(current_user.id, user_role, db)
+        if cache:
+            cached_gap = json.loads(cache.gap_analysis)
+            if cached_gap and cached_gap.get("insights"):
+                print(f"[Cache HIT] market-insights-test for user {current_user.id}")
+                return cached_gap
+
+        # Cache miss — generate fresh data
+        print(f"[Cache MISS] market-insights-test for user {current_user.id}")
+
         # Try to match role to O*NET SOC code
         match = match_role_to_soc(user_role, occupations_df)
         
         if match:
-            # O*NET match found - use traditional data
             soc_code, canonical_role = match
-            market_skills = extract_top_skills(soc_code, skills_df)
+            market_skills = extract_top_skills(soc_code, tech_skills_df)
         else:
-            # No O*NET match - use LLM fallback for modern/non-traditional roles
             print(f"No O*NET match for '{user_role}', using LLM fallback")
-            soc_code = "99-9999.00"  # Generic code for non-O*NET roles
-            canonical_role = user_role  # Use user's original role name
+            soc_code = "99-9999.00"
+            canonical_role = user_role
             market_skills = extract_skills_with_llm(user_role, top_n=15)
         
         # Ensure market_skills is not empty
@@ -255,11 +248,31 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
         
         insights = generate_market_insights(user_skills, market_skills)
 
-        return {
+        gap_result = {
             "role": canonical_role,
             "soc_code": soc_code,
             "insights": insights
         }
+
+        # Store in cache (profile_insights will be filled by /profile-insights)
+        existing_cache = db.query(MarketInsightsCache).filter(
+            MarketInsightsCache.user_id == current_user.id
+        ).first()
+        if existing_cache:
+            existing_cache.role = user_role
+            existing_cache.gap_analysis = json.dumps(gap_result)
+            existing_cache.created_at = datetime.now(timezone.utc)
+        else:
+            new_cache = MarketInsightsCache(
+                user_id=current_user.id,
+                role=user_role,
+                gap_analysis=json.dumps(gap_result),
+                profile_insights=json.dumps({})  # placeholder until /profile-insights fills it
+            )
+            db.add(new_cache)
+        db.commit()
+
+        return gap_result
     
     except HTTPException:
         raise
@@ -302,6 +315,8 @@ async def generate_learning_path(
     # Parse JSON fields safely
     skills = json.loads(profile.skills) if profile.skills else []
     industries = json.loads(profile.preferred_industries) if profile.preferred_industries else []
+    learning_formats = json.loads(profile.learning_format) if profile.learning_format else []
+    instruction_language = profile.language or "English"
 
     # ==================================================
     # RAG PIPELINE 
@@ -315,13 +330,40 @@ async def generate_learning_path(
         web_context = ""
 
     web_context = web_context[:6000]  # token limit safety
+
+    # ==================================================
+    # O*NET ROLE CONTEXT
+    # ==================================================
+    role_context = ""
+    onet_required_skills = []
+    if "occupations" in ONET_CACHE:
+        onet_match = match_role_to_soc(profile.desired_role, ONET_CACHE["occupations"])
+        if onet_match:
+            matched_soc, matched_title = onet_match
+            knowledge_list = extract_top_knowledge(matched_soc, ONET_CACHE["knowledge"], top_n=8)
+            activity_list = extract_top_activities(matched_soc, ONET_CACHE["activities"], top_n=8)
+            onet_required_skills = extract_top_skills(matched_soc, ONET_CACHE["tech_skills"], top_n=15)
+            parts = [f"O*NET Occupational Profile for \"{matched_title}\" (SOC {matched_soc}):"]
+            if knowledge_list:
+                parts.append("Key Knowledge Domains: " + "; ".join(knowledge_list))
+            if activity_list:
+                parts.append("Core Work Activities: " + "; ".join(activity_list))
+            if onet_required_skills:
+                parts.append("Required Technologies: " + ", ".join(onet_required_skills))
+            role_context = "\n".join(parts)
+
     # Prompt Construction 
 
     prompt = f"""
 You are an AI system that generates structured learning paths.
 
-CRITICAL INSTRUCTION:
+CRITICAL INSTRUCTIONS:
 - The generated path MUST fit exactly within the 'Target Timeline' specified by the user (e.g., if target is 3 months, total duration must be approx 3 months). Adjust the scope and depth of modules to fit this constraint.
+- EDUCATION CALIBRATION: Use the user's education level to set the starting depth of the path. High School → include all fundamentals, assume no prior domain knowledge, explain concepts from scratch. Diploma → assume basic technical awareness, skip absolute beginner material. Undergraduate → assume solid domain foundations, skip fundamentals entirely, begin at intermediate. Postgraduate/PhD → assume deep theoretical knowledge, focus on advanced specialization and application. The meta.level field must reflect this (Beginner / Intermediate / Advanced).
+- RESOURCE LANGUAGE: The user prefers learning resources in '{instruction_language}'. When selecting from SOURCES, prioritize courses, videos, articles, and tutorials that are in {instruction_language} or have {instruction_language} subtitles/dubbing available. If {instruction_language} resources are unavailable in SOURCES, fall back to English. All learning path structure text (phase names, why_this_phase, topics, objectives, tasks, project descriptions) must stay in English.
+- CONTENT FORMAT: The user prefers these learning formats: {', '.join(learning_formats) if learning_formats else 'Any'}. Prioritize resources that match — if 'Video / Online' is preferred, favor video courses and YouTube playlists; if 'Text / Reading', favor articles and books; if 'Hands-on', favor interactive platforms and project-based resources.
+- INDUSTRY CONTEXT: The user is targeting the {', '.join(industries) if industries else 'general'} industry/industries. Tailor examples, projects, and use cases to these industries wherever relevant.
+- INCOME TARGET: The user targets {profile.expected_income or 'unspecified'} annual income. Recommend resources and career milestones appropriate for that salary bracket.
 
 IMPORTANT INSTRUCTIONS (STRICT):
 - Use ONLY the resources provided in the SOURCES section.
@@ -335,18 +377,27 @@ SOURCES:
 TASK:
 Generate a highly personalized, comprehensive learning path for the following user.
 Establish a clear logical progression.
-
+{f'''
+ROLE REQUIREMENTS (from O*NET occupational data — use this to calibrate which topics, skills, and knowledge areas the path must cover):
+{role_context}
+''' if role_context else ""}
+{f'''MANDATORY SKILLS DISTRIBUTION:
+The following is the official list of market-required technologies for this role. You MUST distribute ALL of these across the phases using their EXACT names in each phase's "skills" array. Every skill below must appear in at least one phase. You may also add other relevant skills, but these are required:
+{json.dumps(onet_required_skills)}
+''' if onet_required_skills else ""}
 USER DETAILS:
 - Target Role: {profile.desired_role}
 - Current Education: {profile.education_level}
 - Current Status: {profile.current_status}
 - Location: {profile.location}
-- Existing Skills: {', '.join(skills)}
-- Preferred Industries: {', '.join(industries)}
+- Existing Skills: {', '.join(skills) if skills else 'None'}
+- Preferred Industries: {', '.join(industries) if industries else 'Not specified'}
 - Expected Income: {profile.expected_income}
 - Willing to Relocate: {profile.relocation}
 - Learning Pace: {profile.learning_pace}
 - Hours per Week: {profile.hours_per_week}
+- Content Format Preference: {', '.join(learning_formats) if learning_formats else 'Not specified'}
+- Instruction Language: {instruction_language}
 - Budget Sensitivity: {profile.budget_sensitivity}
 - Target Timeline: {profile.timeline}
 - User Email: {current_user.email}
@@ -400,12 +451,13 @@ OUTPUT RULES (STRICT):
 CRITICAL CONTENT REQUIREMENTS:
 1. "why_this_phase": Explain why this phase is important and correctly placed.
 2. "topics": 5–8 detailed sub-topics per phase.
-3. "weekly_breakdown": Break down each phase into weekly focused goals (duration_weeks number of weeks). Each week should have specific learning objectives and practice tasks.
-4. "resources": EXACTLY 6-8 per phase:
-   - 2-3 Courses (Coursera / Udemy / edX / YouTube)
-   - 2-3 Articles or Blogs
-   - 1-2 Books
-5. "projects": MINIMUM 3-5 hands-on projects per phase with varying difficulty levels (Easy/Medium/Hard)
+3. "skills": Technologies/tools the user will learn in this phase. If MANDATORY SKILLS DISTRIBUTION was provided above, use those EXACT names (copy-paste). Distribute ALL mandatory skills across phases so that completing the entire path covers every one. You may add extra skills too.
+4. "weekly_breakdown": Break down each phase into weekly focused goals (duration_weeks number of weeks). Each week should have specific learning objectives and practice tasks.
+5. "resources": EXACTLY 6-8 per phase. Match the user's preferred content format ({', '.join(learning_formats) if learning_formats else 'any format'}):
+   - 2-3 Courses (Coursera / Udemy / edX / YouTube) — prioritize if user prefers Video / Online
+   - 2-3 Articles or Blogs — prioritize if user prefers Text / Reading
+   - 1-2 Books — include if user prefers Text / Reading
+6. "projects": MINIMUM 3-5 hands-on projects per phase with varying difficulty levels (Easy/Medium/Hard). Tie projects to the user's target industries: {', '.join(industries) if industries else 'general domain'}.
 """
 
     response = client.chat.completions.create(
@@ -421,6 +473,29 @@ CRITICAL CONTENT REQUIREMENTS:
 
     try:
         path_json = json.loads(content)
+
+        # Post-process: ensure O*NET required skills are distributed across phases
+        if onet_required_skills and path_json.get("learning_path"):
+            phases = path_json["learning_path"]
+            # Collect all skills already present (lowercased for comparison)
+            all_phase_skills_lower = set()
+            for phase in phases:
+                for sk in phase.get("skills", []):
+                    all_phase_skills_lower.add(sk.lower().strip())
+
+            # Find which O*NET skills are missing
+            missing = [sk for sk in onet_required_skills if sk.lower().strip() not in all_phase_skills_lower]
+
+            if missing:
+                # Distribute missing skills evenly across phases
+                for i, sk in enumerate(missing):
+                    target_phase = phases[i % len(phases)]
+                    if "skills" not in target_phase:
+                        target_phase["skills"] = []
+                    target_phase["skills"].append(sk)
+
+            # Re-serialize with the patched skills
+            content = json.dumps(path_json)
 
         new_path = LearningPath(user_id=current_user.id, path_data=content)
         db.add(new_path)
@@ -602,6 +677,33 @@ async def submit_test(
             
             if next_progress:
                 next_progress.is_unlocked = True
+
+            # Add phase skills to user profile
+            try:
+                path = db.query(LearningPath).filter(LearningPath.user_id == current_user.id).first()
+                if path:
+                    path_data = json.loads(path.path_data)
+                    learning_path = path_data.get("learning_path", [])
+                    if phase_index < len(learning_path):
+                        phase_skills = learning_path[phase_index].get("skills", [])
+                        if phase_skills:
+                            profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+                            if profile:
+                                current_skills = json.loads(profile.skills) if profile.skills else []
+                                current_skills_lower = [s.lower() for s in current_skills]
+                                new_skills_added = False
+                                for skill in phase_skills:
+                                    if skill.strip() and skill.lower() not in current_skills_lower:
+                                        current_skills.append(skill.strip())
+                                        current_skills_lower.append(skill.lower())
+                                        new_skills_added = True
+                                if new_skills_added:
+                                    profile.skills = json.dumps(current_skills)
+                                    # Invalidate market insights cache since skills changed
+                                    invalidate_market_insights_cache(current_user.id, db)
+                                    print(f"[Phase {phase_index} passed] Added {len(phase_skills)} skills to user {current_user.id} profile")
+            except Exception as skill_err:
+                print(f"Warning: Failed to add phase skills to profile: {skill_err}")
     
     db.commit()
     
@@ -653,6 +755,8 @@ async def add_skill_and_regenerate_path(
     
     # Delete existing learning path to force regeneration
     db.query(LearningPath).filter(LearningPath.user_id == current_user.id).delete()
+    # Invalidate market insights cache (skills changed)
+    db.query(MarketInsightsCache).filter(MarketInsightsCache.user_id == current_user.id).delete()
     db.commit()
     
     return {
@@ -712,25 +816,24 @@ async def profile_analysis(
 
         # Load Data 
         if "occupations" not in ONET_CACHE:
-             occupations, skills_df = load_onet_data()
+             occupations, skills_df, tech_skills_df, knowledge_df, activities_df = load_onet_data()
              ONET_CACHE["occupations"] = occupations
              ONET_CACHE["skills"] = skills_df
+             ONET_CACHE["tech_skills"] = tech_skills_df
+             ONET_CACHE["knowledge"] = knowledge_df
+             ONET_CACHE["activities"] = activities_df
         else:
              occupations = ONET_CACHE["occupations"]
-             skills_df = ONET_CACHE["skills"]
+             tech_skills_df = ONET_CACHE["tech_skills"]
         
         # 1. Match Role to SOC
         match = role_matcher.match_role_to_soc(profile.desired_role, occupations)
         
         if match:
-            # O*NET match found - use traditional data
             soc_code, soc_title = match
-            # 2. Get Market Skills for SOC
-            relevant_skills = skills_df[skills_df["O*NET-SOC Code"] == soc_code]
-            top_market_skills = relevant_skills[relevant_skills["Scale ID"] == "IM"]
-            top_market_skills = top_market_skills.sort_values("Data Value", ascending=False).head(20)["Element Name"].tolist()
+            # 2. Get Market Skills from Technology Skills data
+            top_market_skills = extract_top_skills(soc_code, tech_skills_df, top_n=20)
         else:
-            # No O*NET match - use LLM fallback
             print(f"No O*NET match for '{profile.desired_role}' in profile analysis, using LLM fallback")
             soc_code = "99-9999.00"
             soc_title = profile.desired_role
@@ -747,6 +850,7 @@ async def profile_analysis(
         # 3. Analyze Gap
         user_skills = json.loads(profile.skills) if profile.skills else []
         insights = insights_engine.generate_market_insights(user_skills, top_market_skills)
+        coverage = insights["skill_coverage_percent"]
         
         # 4. LLM Market Analysis (with fallback)
         try:
@@ -762,7 +866,6 @@ async def profile_analysis(
             }
 
         # 5. Calculate Scores
-        coverage = insights["skill_coverage_percent"]
         north_star_score = min(int(coverage * 1.2) + 20, 100) 
 
         # Dynamic Radar Dimensions from LLM
@@ -922,6 +1025,8 @@ async def create_user_details(
         
         # Invalidate learning path
         invalidate_learning_path(current_user.id, db)
+        # Invalidate market insights cache (role/skills may have changed)
+        invalidate_market_insights_cache(current_user.id, db)
         
         return {"message": "User profile saved successfully"}
 
@@ -940,55 +1045,75 @@ async def get_profile_insights(
         if not profile:
             raise HTTPException(status_code=400, detail="Profile not found")
 
-        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        
-        # Construct context for the AI
-        skills = json.loads(profile.skills) if profile.skills else []
         role = profile.desired_role or "General Technology"
-        location = profile.location or "Global"
-        
-        prompt = f"""
-        Analyze the career profile for a user targeting the role of '{role}' based in '{location}'.
-        Their current skills are: {', '.join(skills) if skills else 'None listed'}.
-        
-        Provide a JSON response with the following market insights:
-        1. "trending_skills": A list of 3-5 top trending skills they should learn next for this role.
-        2. "role_growth": A percentage string (e.g. "+12%") representing estimated annual hiring growth for this role.
-        3. "salary_insight": A short string comparing their target income to the market average.
-        4. "market_outlook": A concise 1-sentence summary of the job market for this role.
-        5. "hot_sectors": A list of 2-3 industries currently hiring aggressively for this role.
-        
-        Return ONLY valid JSON.
-        """
 
-        try:
-            completion = client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": "You are a career market analyst providing real-time data insights. Output distinct JSON only."},
-                    {"role": "user", "content": prompt}
-                ],
-                model="groq/compound",
-                temperature=0.7,
-                response_format={"type": "json_object"}
-            )
-            
-            content = completion.choices[0].message.content
-            result = json.loads(content)
-            # Validate required fields exist
-            if all(key in result for key in ["trending_skills", "role_growth", "salary_insight", "market_outlook", "hot_sectors"]):
-                return result
-        except Exception as llm_err:
-            print(f"LLM error in profile-insights: {llm_err}")
-        
-        # Fallback data if AI fails
-        print(f"Using fallback data for profile insights")
-        return {
-             "trending_skills": ["Cloud Architecture", "AI Integration", "Data Security"],
-             "role_growth": "+8%",
-             "salary_insight": "Market competitive",
-             "market_outlook": "Steady demand with unique specializations.",
-             "hot_sectors": ["Technology", "Finance", "Healthcare"]
+        # Check cache first
+        cache = get_valid_cache(current_user.id, role, db)
+        if cache:
+            cached_insights = json.loads(cache.profile_insights)
+            # Only return if actually populated (not empty placeholder)
+            if cached_insights and cached_insights.get("trending_skills"):
+                print(f"[Cache HIT] profile-insights for user {current_user.id}")
+                return cached_insights
+
+        print(f"[Cache MISS] profile-insights for user {current_user.id}")
+
+        # Use analyze_role_outlook for LLM-powered market data
+        outlook = insights_engine.analyze_role_outlook(role)
+
+        # Transform analyze_role_outlook output to the frontend-expected format
+        growth_score = outlook.get("growth", 75)
+        salary_score = outlook.get("salary", 75)
+        demand_score = outlook.get("demand", 75)
+
+        # Convert numeric growth score to percentage string
+        if growth_score >= 80:
+            role_growth = f"+{growth_score // 5}%"
+        elif growth_score >= 50:
+            role_growth = f"+{growth_score // 8}%"
+        else:
+            role_growth = f"+{max(1, growth_score // 10)}%"
+
+        # Convert numeric salary score to insight string
+        if salary_score >= 80:
+            salary_insight = "Above market average — top-tier compensation"
+        elif salary_score >= 60:
+            salary_insight = "Competitive — at or above market median"
+        elif salary_score >= 40:
+            salary_insight = "Market average — room for negotiation"
+        else:
+            salary_insight = "Below market average — upskilling can help"
+
+        # Derive hot sectors from demand + role context
+        hot_sectors = ["Technology", "Finance", "Healthcare"]
+        if demand_score >= 70:
+            hot_sectors = ["Technology", "AI & Automation", "Cloud Services"]
+
+        result = {
+            "trending_skills": outlook.get("trending_skills", [])[:5],
+            "role_growth": role_growth,
+            "salary_insight": salary_insight,
+            "market_outlook": outlook.get("summary", "Steady demand with growth opportunities."),
+            "hot_sectors": hot_sectors
         }
+
+        # Store in cache
+        existing_cache = db.query(MarketInsightsCache).filter(
+            MarketInsightsCache.user_id == current_user.id
+        ).first()
+        if existing_cache:
+            existing_cache.profile_insights = json.dumps(result)
+        else:
+            new_cache = MarketInsightsCache(
+                user_id=current_user.id,
+                role=role,
+                gap_analysis=json.dumps({}),  # placeholder
+                profile_insights=json.dumps(result)
+            )
+            db.add(new_cache)
+        db.commit()
+
+        return result
     
     except HTTPException:
         raise
@@ -1030,6 +1155,8 @@ async def add_skill(
         
         # Invalidate learning path
         invalidate_learning_path(current_user.id, db)
+        # Invalidate market insights cache (skills changed)
+        invalidate_market_insights_cache(current_user.id, db)
         
         return {"message": "Skill added", "skills": current_skills}
         

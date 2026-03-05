@@ -1,27 +1,50 @@
-def generate_market_insights(user_skills, market_skills):
-    user_skills_lower = set(s.lower() for s in user_skills)
+def _normalise(s: str) -> str:
+    """Lowercase, strip, collapse whitespace."""
+    return " ".join(s.lower().split())
 
-    # Handle empty market_skills to avoid division by zero
-    if not market_skills or len(market_skills) == 0:
+
+def _user_covers_skill(user_tokens: set, market_skill: str) -> bool:
+    """
+    Check whether the user already possesses *market_skill*.
+    Uses simple case-insensitive matching — works because both sides now
+    contain concrete technology names (e.g. "Python", "Microsoft Excel").
+    """
+    ms = _normalise(market_skill)
+
+    # 1. Exact token match
+    if ms in user_tokens:
+        return True
+
+    # 2. Substring containment (either direction)
+    for ut in user_tokens:
+        if ms in ut or ut in ms:
+            return True
+
+    return False
+
+
+def generate_market_insights(user_skills: list, market_skills: list) -> dict:
+    """Compare user skills against market-required technology skills."""
+    user_tokens = set(_normalise(s) for s in user_skills)
+
+    if not market_skills:
         return {
             "market_required_skills": [],
             "missing_skills": [],
-            "skill_coverage_percent": 0
+            "skill_coverage_percent": 0,
         }
 
-    missing_skills = [
+    missing = [
         skill for skill in market_skills
-        if skill.lower() not in user_skills_lower
+        if not _user_covers_skill(user_tokens, skill)
     ]
 
-    coverage = int(
-        (len(market_skills) - len(missing_skills)) / len(market_skills) * 100
-    )
+    coverage = int((len(market_skills) - len(missing)) / len(market_skills) * 100)
 
     return {
         "market_required_skills": market_skills,
-        "missing_skills": missing_skills,
-        "skill_coverage_percent": coverage
+        "missing_skills": missing,
+        "skill_coverage_percent": coverage,
     }
 
 from groq import Groq
@@ -57,7 +80,7 @@ def analyze_role_outlook(role_name: str):
         """
 
         response = client.chat.completions.create(
-            model="groq/compound",
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
             response_format={"type": "json_object"}

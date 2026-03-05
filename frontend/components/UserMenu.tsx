@@ -16,7 +16,7 @@ export default function UserMenu({ username = "User", currentStatus = "Member" }
 
     const handleLogout = () => {
         removeToken();
-        router.push("/login"); // Or landing page if you prefer
+        router.push("/login");
     };
 
     // Close on click outside

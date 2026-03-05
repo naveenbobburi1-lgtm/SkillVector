@@ -8,26 +8,31 @@ import {
     MarketGapAnalysis,
     MarketOutlook
 } from "@/lib/market";
+import { getUserProfile } from "@/lib/auth";
 import SkillGapChart from "@/components/market/SkillGapChart";
 import InsightCard from "@/components/market/InsightCard";
 import Navbar from "@/components/Navbar";
+import { exportMarketInsightsReport, UserProfileForReport } from "@/lib/exportReport";
 
 export default function MarketInsightsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [gapAnalysis, setGapAnalysis] = useState<MarketGapAnalysis | null>(null);
     const [outlook, setOutlook] = useState<MarketOutlook | null>(null);
+    const [userProfile, setUserProfile] = useState<UserProfileForReport | null>(null);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // Fetch both concurrently
-                const [gapData, outlookData] = await Promise.all([
+                // Fetch all data concurrently
+                const [gapData, outlookData, profileData] = await Promise.all([
                     getMarketGapAnalysis(),
-                    getMarketOutlook()
+                    getMarketOutlook(),
+                    getUserProfile().catch(() => null)
                 ]);
                 setGapAnalysis(gapData);
                 setOutlook(outlookData);
+                if (profileData) setUserProfile(profileData);
             } catch (err: any) {
                 console.error("Market insights fetch error:", err);
                 setError(err.message || "Failed to load market insights. Please ensure the backend server is running.");
@@ -106,7 +111,14 @@ export default function MarketInsightsPage() {
                             <span className="material-symbols-outlined text-lg">school</span>
                             View Plan
                         </Link>
-                        <button className="px-5 py-2.5 rounded-xl bg-primary text-white font-medium shadow-lg shadow-primary/25 hover:bg-primary-hover hover:shadow-primary/40 transition-all flex items-center gap-2">
+                        <button
+                            onClick={() => {
+                                if (gapAnalysis && outlook) {
+                                    exportMarketInsightsReport(gapAnalysis, outlook, userProfile);
+                                }
+                            }}
+                            className="px-5 py-2.5 rounded-xl bg-primary text-white font-medium shadow-lg shadow-primary/25 hover:bg-primary-hover hover:shadow-primary/40 transition-all flex items-center gap-2"
+                        >
                             <span className="material-symbols-outlined text-lg">download</span>
                             Export Report
                         </button>

@@ -10,16 +10,32 @@ interface StepProps {
 
 export default function Step2Skills({ data, updateData }: StepProps) {
     const [skillInput, setSkillInput] = useState("");
+    const [skillError, setSkillError] = useState("");
     const [certInput, setCertInput] = useState({ title: "", issuer: "" });
 
     const addSkill = () => {
-        if (skillInput.trim()) {
-            const currentSkills = data.skills || [];
-            if (!currentSkills.includes(skillInput.trim())) {
-                updateData({ skills: [...currentSkills, skillInput.trim()] });
-            }
-            setSkillInput("");
+        const trimmed = skillInput.trim();
+        if (!trimmed) return;
+
+        if (trimmed.length < 2) {
+            setSkillError("Skill name must be at least 2 characters.");
+            return;
         }
+        if (!/[a-zA-Z]/.test(trimmed)) {
+            setSkillError("Skill name must contain at least one letter.");
+            return;
+        }
+        if (trimmed.length > 60) {
+            setSkillError("Skill name is too long (max 60 characters).");
+            return;
+        }
+
+        setSkillError("");
+        const currentSkills = data.skills || [];
+        if (!currentSkills.includes(trimmed)) {
+            updateData({ skills: [...currentSkills, trimmed] });
+        }
+        setSkillInput("");
     };
 
     const removeSkill = (skillToRemove: string) => {
@@ -68,9 +84,9 @@ export default function Step2Skills({ data, updateData }: StepProps) {
                             <input
                                 type="text"
                                 value={skillInput}
-                                onChange={(e) => setSkillInput(e.target.value)}
+                                onChange={(e) => { setSkillInput(e.target.value); if (skillError) setSkillError(""); }}
                                 onKeyDown={(e) => e.key === "Enter" && addSkill()}
-                                className="flex-1 bg-surface-2 border border-border rounded-xl pl-12 pr-4 py-4 text-text-main focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder:text-text-muted/40 shadow-inner"
+                                className={`flex-1 bg-surface-2 border rounded-xl pl-12 pr-4 py-4 text-text-main focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder:text-text-muted/40 shadow-inner ${skillError ? "border-error focus:ring-error" : "border-border"}`}
                                 placeholder="Type a skill (e.g. React, Project Management)..."
                             />
                             <button
@@ -82,6 +98,12 @@ export default function Step2Skills({ data, updateData }: StepProps) {
                                 <span className="hidden md:inline">Add</span>
                             </button>
                         </div>
+                        {skillError && (
+                            <p className="text-xs text-error font-medium ml-1 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-sm">error</span>
+                                {skillError}
+                            </p>
+                        )}
 
                         <div className="min-h-[100px] bg-background/50 rounded-xl p-4 border border-dashed border-border flex flex-wrap content-start gap-2">
                             {data.skills?.map((skill) => (
