@@ -20,7 +20,7 @@ from rag.query_planner import generate_search_queries
 from rag.batch_retriever import batch_retrieve
 from market.load_onet import load_onet_data
 from market.role_matcher import match_role_to_soc
-from market.skill_extractor import extract_top_skills, extract_skills_with_llm
+from market.skill_extractor import extract_top_skills, extract_skills_with_llm, extract_top_knowledge, extract_top_activities
 from market.insights_engine import generate_market_insights
 import market.role_matcher as role_matcher
 import market.insights_engine as insights_engine
@@ -63,10 +63,13 @@ ONET_CACHE = {}
 @app.on_event("startup")
 def load_onet():
     try:
-        occupations_df, skills_df = load_onet_data()
+        occupations_df, skills_df, tech_skills_df, knowledge_df, activities_df = load_onet_data()
         ONET_CACHE["occupations"] = occupations_df
         ONET_CACHE["skills"] = skills_df
-        print("✅ O*NET data loaded")
+        ONET_CACHE["tech_skills"] = tech_skills_df
+        ONET_CACHE["knowledge"] = knowledge_df
+        ONET_CACHE["activities"] = activities_df
+        print(f"✅ O*NET data loaded ({len(tech_skills_df)} tech skills, {len(knowledge_df)} knowledge, {len(activities_df)} activities)")
     except Exception as e:
         print("❌ Failed to load O*NET:", e)
 
@@ -203,7 +206,7 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
             raise HTTPException(status_code=500, detail="O*NET data not loaded")
 
         occupations_df = ONET_CACHE["occupations"]
-        skills_df = ONET_CACHE["skills"]
+        tech_skills_df = ONET_CACHE["tech_skills"]
 
         profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
         if not profile:
@@ -215,8 +218,10 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
         # Check cache first
         cache = get_valid_cache(current_user.id, user_role, db)
         if cache:
-            print(f"[Cache HIT] market-insights-test for user {current_user.id}")
-            return json.loads(cache.gap_analysis)
+            cached_gap = json.loads(cache.gap_analysis)
+            if cached_gap and cached_gap.get("insights"):
+                print(f"[Cache HIT] market-insights-test for user {current_user.id}")
+                return cached_gap
 
         # Cache miss — generate fresh data
         print(f"[Cache MISS] market-insights-test for user {current_user.id}")
@@ -225,14 +230,12 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
         match = match_role_to_soc(user_role, occupations_df)
         
         if match:
-            # O*NET match found - use traditional data
             soc_code, canonical_role = match
-            market_skills = extract_top_skills(soc_code, skills_df)
+            market_skills = extract_top_skills(soc_code, tech_skills_df)
         else:
-            # No O*NET match - use LLM fallback for modern/non-traditional roles
             print(f"No O*NET match for '{user_role}', using LLM fallback")
-            soc_code = "99-9999.00"  # Generic code for non-O*NET roles
-            canonical_role = user_role  # Use user's original role name
+            soc_code = "99-9999.00"
+            canonical_role = user_role
             market_skills = extract_skills_with_llm(user_role, top_n=15)
         
         # Ensure market_skills is not empty
@@ -327,6 +330,27 @@ async def generate_learning_path(
         web_context = ""
 
     web_context = web_context[:6000]  # token limit safety
+
+    # ==================================================
+    # O*NET ROLE CONTEXT
+    # ==================================================
+    role_context = ""
+    if "occupations" in ONET_CACHE:
+        onet_match = match_role_to_soc(profile.desired_role, ONET_CACHE["occupations"])
+        if onet_match:
+            matched_soc, matched_title = onet_match
+            knowledge_list = extract_top_knowledge(matched_soc, ONET_CACHE["knowledge"], top_n=8)
+            activity_list = extract_top_activities(matched_soc, ONET_CACHE["activities"], top_n=8)
+            tech_list = extract_top_skills(matched_soc, ONET_CACHE["tech_skills"], top_n=10)
+            parts = [f"O*NET Occupational Profile for \"{matched_title}\" (SOC {matched_soc}):"]
+            if knowledge_list:
+                parts.append("Key Knowledge Domains: " + "; ".join(knowledge_list))
+            if activity_list:
+                parts.append("Core Work Activities: " + "; ".join(activity_list))
+            if tech_list:
+                parts.append("Required Technologies: " + ", ".join(tech_list))
+            role_context = "\n".join(parts)
+
     # Prompt Construction 
 
     prompt = f"""
@@ -352,7 +376,10 @@ SOURCES:
 TASK:
 Generate a highly personalized, comprehensive learning path for the following user.
 Establish a clear logical progression.
-
+{f"""
+ROLE REQUIREMENTS (from O*NET occupational data — use this to calibrate which topics, skills, and knowledge areas the path must cover):
+{role_context}
+""" if role_context else ""}
 USER DETAILS:
 - Target Role: {profile.desired_role}
 - Current Education: {profile.education_level}
@@ -621,6 +648,33 @@ async def submit_test(
             
             if next_progress:
                 next_progress.is_unlocked = True
+
+            # Add phase skills to user profile
+            try:
+                path = db.query(LearningPath).filter(LearningPath.user_id == current_user.id).first()
+                if path:
+                    path_data = json.loads(path.path_data)
+                    learning_path = path_data.get("learning_path", [])
+                    if phase_index < len(learning_path):
+                        phase_skills = learning_path[phase_index].get("skills", [])
+                        if phase_skills:
+                            profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+                            if profile:
+                                current_skills = json.loads(profile.skills) if profile.skills else []
+                                current_skills_lower = [s.lower() for s in current_skills]
+                                new_skills_added = False
+                                for skill in phase_skills:
+                                    if skill.strip() and skill.lower() not in current_skills_lower:
+                                        current_skills.append(skill.strip())
+                                        current_skills_lower.append(skill.lower())
+                                        new_skills_added = True
+                                if new_skills_added:
+                                    profile.skills = json.dumps(current_skills)
+                                    # Invalidate market insights cache since skills changed
+                                    invalidate_market_insights_cache(current_user.id, db)
+                                    print(f"[Phase {phase_index} passed] Added {len(phase_skills)} skills to user {current_user.id} profile")
+            except Exception as skill_err:
+                print(f"Warning: Failed to add phase skills to profile: {skill_err}")
     
     db.commit()
     
@@ -733,25 +787,24 @@ async def profile_analysis(
 
         # Load Data 
         if "occupations" not in ONET_CACHE:
-             occupations, skills_df = load_onet_data()
+             occupations, skills_df, tech_skills_df, knowledge_df, activities_df = load_onet_data()
              ONET_CACHE["occupations"] = occupations
              ONET_CACHE["skills"] = skills_df
+             ONET_CACHE["tech_skills"] = tech_skills_df
+             ONET_CACHE["knowledge"] = knowledge_df
+             ONET_CACHE["activities"] = activities_df
         else:
              occupations = ONET_CACHE["occupations"]
-             skills_df = ONET_CACHE["skills"]
+             tech_skills_df = ONET_CACHE["tech_skills"]
         
         # 1. Match Role to SOC
         match = role_matcher.match_role_to_soc(profile.desired_role, occupations)
         
         if match:
-            # O*NET match found - use traditional data
             soc_code, soc_title = match
-            # 2. Get Market Skills for SOC
-            relevant_skills = skills_df[skills_df["O*NET-SOC Code"] == soc_code]
-            top_market_skills = relevant_skills[relevant_skills["Scale ID"] == "IM"]
-            top_market_skills = top_market_skills.sort_values("Data Value", ascending=False).head(20)["Element Name"].tolist()
+            # 2. Get Market Skills from Technology Skills data
+            top_market_skills = extract_top_skills(soc_code, tech_skills_df, top_n=20)
         else:
-            # No O*NET match - use LLM fallback
             print(f"No O*NET match for '{profile.desired_role}' in profile analysis, using LLM fallback")
             soc_code = "99-9999.00"
             soc_title = profile.desired_role
@@ -768,6 +821,7 @@ async def profile_analysis(
         # 3. Analyze Gap
         user_skills = json.loads(profile.skills) if profile.skills else []
         insights = insights_engine.generate_market_insights(user_skills, top_market_skills)
+        coverage = insights["skill_coverage_percent"]
         
         # 4. LLM Market Analysis (with fallback)
         try:
@@ -783,7 +837,6 @@ async def profile_analysis(
             }
 
         # 5. Calculate Scores
-        coverage = insights["skill_coverage_percent"]
         north_star_score = min(int(coverage * 1.2) + 20, 100) 
 
         # Dynamic Radar Dimensions from LLM
@@ -976,70 +1029,62 @@ async def get_profile_insights(
 
         print(f"[Cache MISS] profile-insights for user {current_user.id}")
 
-        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        
-        # Construct context for the AI
-        skills = json.loads(profile.skills) if profile.skills else []
-        location = profile.location or "Global"
-        
-        prompt = f"""
-        Analyze the career profile for a user targeting the role of '{role}' based in '{location}'.
-        Their current skills are: {', '.join(skills) if skills else 'None listed'}.
-        
-        Provide a JSON response with the following market insights:
-        1. "trending_skills": A list of 3-5 top trending skills they should learn next for this role.
-        2. "role_growth": A percentage string (e.g. "+12%") representing estimated annual hiring growth for this role.
-        3. "salary_insight": A short string comparing their target income to the market average.
-        4. "market_outlook": A concise 1-sentence summary of the job market for this role.
-        5. "hot_sectors": A list of 2-3 industries currently hiring aggressively for this role.
-        
-        Return ONLY valid JSON.
-        """
+        # Use analyze_role_outlook for LLM-powered market data
+        outlook = insights_engine.analyze_role_outlook(role)
 
-        try:
-            completion = client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": "You are a career market analyst providing real-time data insights. Output distinct JSON only."},
-                    {"role": "user", "content": prompt}
-                ],
-                model="llama-3.3-70b-versatile",
-                temperature=0.7,
-                response_format={"type": "json_object"}
-            )
-            
-            content = completion.choices[0].message.content
-            result = json.loads(content)
-            # Validate required fields exist
-            if all(key in result for key in ["trending_skills", "role_growth", "salary_insight", "market_outlook", "hot_sectors"]):
-                # Store in cache
-                existing_cache = db.query(MarketInsightsCache).filter(
-                    MarketInsightsCache.user_id == current_user.id
-                ).first()
-                if existing_cache:
-                    existing_cache.profile_insights = json.dumps(result)
-                    # Don't reset created_at — keep aligned with gap_analysis TTL
-                else:
-                    new_cache = MarketInsightsCache(
-                        user_id=current_user.id,
-                        role=role,
-                        gap_analysis=json.dumps({}),  # placeholder
-                        profile_insights=json.dumps(result)
-                    )
-                    db.add(new_cache)
-                db.commit()
-                return result
-        except Exception as llm_err:
-            print(f"LLM error in profile-insights: {llm_err}")
-        
-        # Fallback data if AI fails
-        print(f"Using fallback data for profile insights")
-        return {
-             "trending_skills": ["Cloud Architecture", "AI Integration", "Data Security"],
-             "role_growth": "+8%",
-             "salary_insight": "Market competitive",
-             "market_outlook": "Steady demand with unique specializations.",
-             "hot_sectors": ["Technology", "Finance", "Healthcare"]
+        # Transform analyze_role_outlook output to the frontend-expected format
+        growth_score = outlook.get("growth", 75)
+        salary_score = outlook.get("salary", 75)
+        demand_score = outlook.get("demand", 75)
+
+        # Convert numeric growth score to percentage string
+        if growth_score >= 80:
+            role_growth = f"+{growth_score // 5}%"
+        elif growth_score >= 50:
+            role_growth = f"+{growth_score // 8}%"
+        else:
+            role_growth = f"+{max(1, growth_score // 10)}%"
+
+        # Convert numeric salary score to insight string
+        if salary_score >= 80:
+            salary_insight = "Above market average — top-tier compensation"
+        elif salary_score >= 60:
+            salary_insight = "Competitive — at or above market median"
+        elif salary_score >= 40:
+            salary_insight = "Market average — room for negotiation"
+        else:
+            salary_insight = "Below market average — upskilling can help"
+
+        # Derive hot sectors from demand + role context
+        hot_sectors = ["Technology", "Finance", "Healthcare"]
+        if demand_score >= 70:
+            hot_sectors = ["Technology", "AI & Automation", "Cloud Services"]
+
+        result = {
+            "trending_skills": outlook.get("trending_skills", [])[:5],
+            "role_growth": role_growth,
+            "salary_insight": salary_insight,
+            "market_outlook": outlook.get("summary", "Steady demand with growth opportunities."),
+            "hot_sectors": hot_sectors
         }
+
+        # Store in cache
+        existing_cache = db.query(MarketInsightsCache).filter(
+            MarketInsightsCache.user_id == current_user.id
+        ).first()
+        if existing_cache:
+            existing_cache.profile_insights = json.dumps(result)
+        else:
+            new_cache = MarketInsightsCache(
+                user_id=current_user.id,
+                role=role,
+                gap_analysis=json.dumps({}),  # placeholder
+                profile_insights=json.dumps(result)
+            )
+            db.add(new_cache)
+        db.commit()
+
+        return result
     
     except HTTPException:
         raise
