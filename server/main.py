@@ -1,7 +1,7 @@
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from db.database import get_db,init_db
-from db.models import UserDB, UserProfile, ProfileDB, SkillDB, CertificationDB, CareerGoalDB, LearningPath, PhaseProgress, TestAttempt, ActiveTest, VideoAssignment, UserVideoAssignment, VideoProgress, AdminActivityLog
+from db.models import UserDB, UserProfile, ProfileDB, SkillDB, CertificationDB, CareerGoalDB, LearningPath, PhaseProgress, TestAttempt, ActiveTest, VideoAssignment, UserVideoAssignment, VideoProgress, AdminActivityLog, MarketInsightsCache
 import schemas.UserSchemas as schemas
 import schemas.ProfileSchemas as profile_schemas
 from rag.retriever import clean_llm_json
@@ -32,6 +32,29 @@ def invalidate_learning_path(user_id: int, db: Session):
     """Deletes the existing learning path for a user to force regeneration."""
     db.query(LearningPath).filter(LearningPath.user_id == user_id).delete()
     db.commit()
+
+MARKET_INSIGHTS_TTL_HOURS = 24  # Cache market insights for 24 hours
+
+def invalidate_market_insights_cache(user_id: int, db: Session):
+    """Deletes cached market insights for a user to force regeneration."""
+    db.query(MarketInsightsCache).filter(MarketInsightsCache.user_id == user_id).delete()
+    db.commit()
+
+def get_valid_cache(user_id: int, role: str, db: Session):
+    """Returns cached market insights if within TTL and role matches, else None."""
+    cache = db.query(MarketInsightsCache).filter(
+        MarketInsightsCache.user_id == user_id,
+        MarketInsightsCache.role == role
+    ).first()
+    if not cache:
+        return None
+    age = datetime.now(timezone.utc) - cache.created_at.replace(tzinfo=timezone.utc)
+    if age > timedelta(hours=MARKET_INSIGHTS_TTL_HOURS):
+        # Expired — delete and return None
+        db.delete(cache)
+        db.commit()
+        return None
+    return cache
 
 app = FastAPI()
 print(os.getenv("SECRET_KEY"))
@@ -189,6 +212,15 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
         user_role = profile.desired_role
         user_skills = json.loads(profile.skills) if profile.skills else []
 
+        # Check cache first
+        cache = get_valid_cache(current_user.id, user_role, db)
+        if cache:
+            print(f"[Cache HIT] market-insights-test for user {current_user.id}")
+            return json.loads(cache.gap_analysis)
+
+        # Cache miss — generate fresh data
+        print(f"[Cache MISS] market-insights-test for user {current_user.id}")
+
         # Try to match role to O*NET SOC code
         match = match_role_to_soc(user_role, occupations_df)
         
@@ -213,11 +245,31 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
         
         insights = generate_market_insights(user_skills, market_skills)
 
-        return {
+        gap_result = {
             "role": canonical_role,
             "soc_code": soc_code,
             "insights": insights
         }
+
+        # Store in cache (profile_insights will be filled by /profile-insights)
+        existing_cache = db.query(MarketInsightsCache).filter(
+            MarketInsightsCache.user_id == current_user.id
+        ).first()
+        if existing_cache:
+            existing_cache.role = user_role
+            existing_cache.gap_analysis = json.dumps(gap_result)
+            existing_cache.created_at = datetime.now(timezone.utc)
+        else:
+            new_cache = MarketInsightsCache(
+                user_id=current_user.id,
+                role=user_role,
+                gap_analysis=json.dumps(gap_result),
+                profile_insights=json.dumps({})  # placeholder until /profile-insights fills it
+            )
+            db.add(new_cache)
+        db.commit()
+
+        return gap_result
     
     except HTTPException:
         raise
@@ -620,6 +672,8 @@ async def add_skill_and_regenerate_path(
     
     # Delete existing learning path to force regeneration
     db.query(LearningPath).filter(LearningPath.user_id == current_user.id).delete()
+    # Invalidate market insights cache (skills changed)
+    db.query(MarketInsightsCache).filter(MarketInsightsCache.user_id == current_user.id).delete()
     db.commit()
     
     return {
@@ -889,6 +943,8 @@ async def create_user_details(
         
         # Invalidate learning path
         invalidate_learning_path(current_user.id, db)
+        # Invalidate market insights cache (role/skills may have changed)
+        invalidate_market_insights_cache(current_user.id, db)
         
         return {"message": "User profile saved successfully"}
 
@@ -907,11 +963,23 @@ async def get_profile_insights(
         if not profile:
             raise HTTPException(status_code=400, detail="Profile not found")
 
+        role = profile.desired_role or "General Technology"
+
+        # Check cache first
+        cache = get_valid_cache(current_user.id, role, db)
+        if cache:
+            cached_insights = json.loads(cache.profile_insights)
+            # Only return if actually populated (not empty placeholder)
+            if cached_insights and cached_insights.get("trending_skills"):
+                print(f"[Cache HIT] profile-insights for user {current_user.id}")
+                return cached_insights
+
+        print(f"[Cache MISS] profile-insights for user {current_user.id}")
+
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
         
         # Construct context for the AI
         skills = json.loads(profile.skills) if profile.skills else []
-        role = profile.desired_role or "General Technology"
         location = profile.location or "Global"
         
         prompt = f"""
@@ -934,7 +1002,7 @@ async def get_profile_insights(
                     {"role": "system", "content": "You are a career market analyst providing real-time data insights. Output distinct JSON only."},
                     {"role": "user", "content": prompt}
                 ],
-                model="groq/compound",
+                model="llama-3.3-70b-versatile",
                 temperature=0.7,
                 response_format={"type": "json_object"}
             )
@@ -943,6 +1011,22 @@ async def get_profile_insights(
             result = json.loads(content)
             # Validate required fields exist
             if all(key in result for key in ["trending_skills", "role_growth", "salary_insight", "market_outlook", "hot_sectors"]):
+                # Store in cache
+                existing_cache = db.query(MarketInsightsCache).filter(
+                    MarketInsightsCache.user_id == current_user.id
+                ).first()
+                if existing_cache:
+                    existing_cache.profile_insights = json.dumps(result)
+                    # Don't reset created_at — keep aligned with gap_analysis TTL
+                else:
+                    new_cache = MarketInsightsCache(
+                        user_id=current_user.id,
+                        role=role,
+                        gap_analysis=json.dumps({}),  # placeholder
+                        profile_insights=json.dumps(result)
+                    )
+                    db.add(new_cache)
+                db.commit()
                 return result
         except Exception as llm_err:
             print(f"LLM error in profile-insights: {llm_err}")
@@ -997,6 +1081,8 @@ async def add_skill(
         
         # Invalidate learning path
         invalidate_learning_path(current_user.id, db)
+        # Invalidate market insights cache (skills changed)
+        invalidate_market_insights_cache(current_user.id, db)
         
         return {"message": "Skill added", "skills": current_skills}
         

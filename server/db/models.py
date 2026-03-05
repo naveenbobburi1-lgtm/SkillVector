@@ -206,3 +206,15 @@ class AdminActivityLog(Base):
     details = Column(Text, nullable=True)  # JSON with extra context
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+
+class MarketInsightsCache(Base):
+    """Caches market insights per user+role to avoid repeated LLM calls. TTL-based."""
+    __tablename__ = "market_insights_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, nullable=False)
+    role = Column(String, nullable=False)
+    gap_analysis = Column(Text, nullable=False)      # JSON: {role, soc_code, insights: {...}}
+    profile_insights = Column(Text, nullable=False)   # JSON: {trending_skills, role_growth, ...}
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+

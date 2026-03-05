@@ -50,7 +50,7 @@ def extract_skills_with_llm(role_name: str, top_n=10):
         """
 
         response = client.chat.completions.create(
-            model="groq/compound",
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
             response_format={"type": "json_object"}
