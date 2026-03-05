@@ -335,20 +335,21 @@ async def generate_learning_path(
     # O*NET ROLE CONTEXT
     # ==================================================
     role_context = ""
+    onet_required_skills = []
     if "occupations" in ONET_CACHE:
         onet_match = match_role_to_soc(profile.desired_role, ONET_CACHE["occupations"])
         if onet_match:
             matched_soc, matched_title = onet_match
             knowledge_list = extract_top_knowledge(matched_soc, ONET_CACHE["knowledge"], top_n=8)
             activity_list = extract_top_activities(matched_soc, ONET_CACHE["activities"], top_n=8)
-            tech_list = extract_top_skills(matched_soc, ONET_CACHE["tech_skills"], top_n=10)
+            onet_required_skills = extract_top_skills(matched_soc, ONET_CACHE["tech_skills"], top_n=15)
             parts = [f"O*NET Occupational Profile for \"{matched_title}\" (SOC {matched_soc}):"]
             if knowledge_list:
                 parts.append("Key Knowledge Domains: " + "; ".join(knowledge_list))
             if activity_list:
                 parts.append("Core Work Activities: " + "; ".join(activity_list))
-            if tech_list:
-                parts.append("Required Technologies: " + ", ".join(tech_list))
+            if onet_required_skills:
+                parts.append("Required Technologies: " + ", ".join(onet_required_skills))
             role_context = "\n".join(parts)
 
     # Prompt Construction 
@@ -376,10 +377,14 @@ SOURCES:
 TASK:
 Generate a highly personalized, comprehensive learning path for the following user.
 Establish a clear logical progression.
-{f"""
+{f'''
 ROLE REQUIREMENTS (from O*NET occupational data — use this to calibrate which topics, skills, and knowledge areas the path must cover):
 {role_context}
-""" if role_context else ""}
+''' if role_context else ""}
+{f'''MANDATORY SKILLS DISTRIBUTION:
+The following is the official list of market-required technologies for this role. You MUST distribute ALL of these across the phases using their EXACT names in each phase's "skills" array. Every skill below must appear in at least one phase. You may also add other relevant skills, but these are required:
+{json.dumps(onet_required_skills)}
+''' if onet_required_skills else ""}
 USER DETAILS:
 - Target Role: {profile.desired_role}
 - Current Education: {profile.education_level}
@@ -446,12 +451,13 @@ OUTPUT RULES (STRICT):
 CRITICAL CONTENT REQUIREMENTS:
 1. "why_this_phase": Explain why this phase is important and correctly placed.
 2. "topics": 5–8 detailed sub-topics per phase.
-3. "weekly_breakdown": Break down each phase into weekly focused goals (duration_weeks number of weeks). Each week should have specific learning objectives and practice tasks.
-4. "resources": EXACTLY 6-8 per phase. Match the user's preferred content format ({', '.join(learning_formats) if learning_formats else 'any format'}):
+3. "skills": Technologies/tools the user will learn in this phase. If MANDATORY SKILLS DISTRIBUTION was provided above, use those EXACT names (copy-paste). Distribute ALL mandatory skills across phases so that completing the entire path covers every one. You may add extra skills too.
+4. "weekly_breakdown": Break down each phase into weekly focused goals (duration_weeks number of weeks). Each week should have specific learning objectives and practice tasks.
+5. "resources": EXACTLY 6-8 per phase. Match the user's preferred content format ({', '.join(learning_formats) if learning_formats else 'any format'}):
    - 2-3 Courses (Coursera / Udemy / edX / YouTube) — prioritize if user prefers Video / Online
    - 2-3 Articles or Blogs — prioritize if user prefers Text / Reading
    - 1-2 Books — include if user prefers Text / Reading
-5. "projects": MINIMUM 3-5 hands-on projects per phase with varying difficulty levels (Easy/Medium/Hard). Tie projects to the user's target industries: {', '.join(industries) if industries else 'general domain'}.
+6. "projects": MINIMUM 3-5 hands-on projects per phase with varying difficulty levels (Easy/Medium/Hard). Tie projects to the user's target industries: {', '.join(industries) if industries else 'general domain'}.
 """
 
     response = client.chat.completions.create(
@@ -467,6 +473,29 @@ CRITICAL CONTENT REQUIREMENTS:
 
     try:
         path_json = json.loads(content)
+
+        # Post-process: ensure O*NET required skills are distributed across phases
+        if onet_required_skills and path_json.get("learning_path"):
+            phases = path_json["learning_path"]
+            # Collect all skills already present (lowercased for comparison)
+            all_phase_skills_lower = set()
+            for phase in phases:
+                for sk in phase.get("skills", []):
+                    all_phase_skills_lower.add(sk.lower().strip())
+
+            # Find which O*NET skills are missing
+            missing = [sk for sk in onet_required_skills if sk.lower().strip() not in all_phase_skills_lower]
+
+            if missing:
+                # Distribute missing skills evenly across phases
+                for i, sk in enumerate(missing):
+                    target_phase = phases[i % len(phases)]
+                    if "skills" not in target_phase:
+                        target_phase["skills"] = []
+                    target_phase["skills"].append(sk)
+
+            # Re-serialize with the patched skills
+            content = json.dumps(path_json)
 
         new_path = LearningPath(user_id=current_user.id, path_data=content)
         db.add(new_path)
