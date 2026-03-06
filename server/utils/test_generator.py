@@ -3,6 +3,7 @@
 
 from sqlalchemy.orm import Session
 from db.models import PhaseProgress
+from config import LLM_MODEL
 
 def generate_phase_mcqs(phase_data: dict, phase_index: int):
     """
@@ -54,7 +55,7 @@ def generate_phase_mcqs(phase_data: dict, phase_index: int):
         """
         
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=LLM_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
             response_format={"type": "json_object"}

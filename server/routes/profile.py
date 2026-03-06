@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from db.database import get_db
-from db.models import UserDB, UserProfile, ProfileDB, SkillDB, CertificationDB, CareerGoalDB, MarketInsightsCache
+from db.models import UserDB, UserProfile, MarketInsightsCache
 from auth import get_current_user
 import schemas.UserSchemas as schemas
 import schemas.ProfileSchemas as profile_schemas
@@ -161,70 +161,6 @@ async def profile_analysis(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to generate profile analysis: {str(e)}")
-
-
-@router.post("/profile", response_model=profile_schemas.ProfileResponse)
-async def create_or_update_profile(
-    profile: profile_schemas.ProfileCreate,
-    db: Session = Depends(get_db),
-    current_user: UserDB = Depends(get_current_user)
-):
-    # Check if profile exists
-    db_profile = db.query(ProfileDB).filter(ProfileDB.user_id == current_user.id).first()
-
-    if not db_profile:
-        db_profile = ProfileDB(user_id=current_user.id)
-        db.add(db_profile)
-        db.commit()
-        db.refresh(db_profile)
-
-    # Update basic fields
-    db_profile.full_name = profile.full_name
-    db_profile.age = profile.age
-    db_profile.education = profile.education
-    db_profile.current_status = profile.current_status
-    db_profile.location = profile.location
-    db_profile.total_experience = profile.total_experience
-
-    # Update Skills (Full replacement strategy)
-    # First, remove existing relations
-    db.query(SkillDB).filter(SkillDB.profile_id == db_profile.id).delete()
-    db.query(CertificationDB).filter(CertificationDB.profile_id == db_profile.id).delete()
-    db.query(CareerGoalDB).filter(CareerGoalDB.profile_id == db_profile.id).delete()
-
-    # Add new Skills
-    for skill in profile.skills:
-        new_skill = SkillDB(profile_id=db_profile.id, name=skill.name, category=skill.category)
-        db.add(new_skill)
-
-    # Add new Certifications
-    for cert in profile.certifications:
-        new_cert = CertificationDB(profile_id=db_profile.id, name=cert.name, issuer=cert.issuer)
-        db.add(new_cert)
-
-    # Add new Career Goals
-    for goal in profile.career_goals:
-        new_goal = CareerGoalDB(profile_id=db_profile.id, title=goal.title, description=goal.description)
-        db.add(new_goal)
-
-    db.commit()
-    db.refresh(db_profile)
-
-    # Invalidate learning path
-    invalidate_learning_path(current_user.id, db)
-
-    return db_profile
-
-
-@router.get("/profile", response_model=profile_schemas.ProfileResponse)
-async def get_profile(
-    db: Session = Depends(get_db),
-    current_user: UserDB = Depends(get_current_user)
-):
-    db_profile = db.query(ProfileDB).filter(ProfileDB.user_id == current_user.id).first()
-    if not db_profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    return db_profile
 
 
 @router.post("/userdetails")
@@ -406,7 +342,6 @@ async def add_skill(
 
         current_skills.append(skill_data.skill)
         profile.skills = json.dumps(current_skills)
-        profile.skills = json.dumps(current_skills)
         db.commit()
 
         # Invalidate learning path
@@ -442,7 +377,6 @@ async def add_certification(
         new_cert = {"title": cert_data.name, "issuer": cert_data.issuer}
         current_certs.append(new_cert)
 
-        profile.certifications = json.dumps(current_certs)
         profile.certifications = json.dumps(current_certs)
         db.commit()
 

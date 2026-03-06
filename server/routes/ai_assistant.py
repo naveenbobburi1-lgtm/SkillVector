@@ -4,6 +4,7 @@ from db.database import get_db
 from db.models import UserDB, UserProfile, LearningPath
 from auth import get_current_user
 from groq import Groq
+from config import LLM_MODEL
 import os
 import json
 
@@ -157,14 +158,14 @@ RULES (MUST FOLLOW):
             client = Groq(api_key=os.getenv("GROQ_API_KEY"))
             completion = client.chat.completions.create(
                 messages=messages,
-                model="llama-3.3-70b-versatile",
+                model=LLM_MODEL,
                 temperature=0.7,
                 max_tokens=2048,
             )
             return {
                 "answer": completion.choices[0].message.content,
                 "sources": [],
-                "model": "llama-3.3-70b-versatile (fallback)"
+                "model": f"{LLM_MODEL} (fallback)"
             }
         except Exception as fallback_err:
             print(f"Fallback model also failed: {fallback_err}")

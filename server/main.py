@@ -1,10 +1,16 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from db.database import init_db
 from market.load_onet import load_onet_data
 from config import ONET_CACHE
 from dotenv import load_dotenv
+import logging
 import os
+
+load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # Route imports
 from routes.auth import router as auth_router
@@ -15,15 +21,12 @@ from routes.ai_assistant import router as ai_assistant_router
 from routes.admin import router as admin_router
 from routes.assignments import router as assignments_router
 
-load_dotenv()
 init_db()
 
-app = FastAPI()
-print(os.getenv("SECRET_KEY"))
 
-
-@app.on_event("startup")
-def load_onet():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
     try:
         occupations_df, skills_df, tech_skills_df, knowledge_df, activities_df = load_onet_data()
         ONET_CACHE["occupations"] = occupations_df
@@ -31,9 +34,15 @@ def load_onet():
         ONET_CACHE["tech_skills"] = tech_skills_df
         ONET_CACHE["knowledge"] = knowledge_df
         ONET_CACHE["activities"] = activities_df
-        print(f"✅ O*NET data loaded ({len(tech_skills_df)} tech skills, {len(knowledge_df)} knowledge, {len(activities_df)} activities)")
+        logger.info("O*NET data loaded (%d tech skills, %d knowledge, %d activities)",
+                     len(tech_skills_df), len(knowledge_df), len(activities_df))
     except Exception as e:
-        print("❌ Failed to load O*NET:", e)
+        logger.error("Failed to load O*NET: %s", e)
+    yield
+    # Shutdown (cleanup if needed)
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 allowed_origins = [

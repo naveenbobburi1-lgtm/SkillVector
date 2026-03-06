@@ -2,6 +2,7 @@ import os
 import json
 from groq import Groq
 from dotenv import load_dotenv
+from config import LLM_MODEL, LLM_TEMPERATURE
 
 load_dotenv()
 
@@ -34,9 +35,9 @@ Rules:
 """
 
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model=LLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.2
+        temperature=LLM_TEMPERATURE
     )
 
     raw = response.choices[0].message.content.strip()

@@ -10,7 +10,7 @@ from rag.batch_retriever import batch_retrieve
 from market.role_matcher import match_role_to_soc
 from market.skill_extractor import extract_top_skills, extract_top_knowledge, extract_top_activities
 from services.cache_service import invalidate_market_insights_cache
-from config import ONET_CACHE
+from config import ONET_CACHE, RAG_MAX_SOURCES, RAG_CONTEXT_CHAR_LIMIT, LLM_MODEL, LLM_TEMPERATURE, TEST_PASSING_SCORE
 from groq import Groq
 import os
 import json
@@ -60,12 +60,12 @@ async def generate_learning_path(
 
     try:
         search_queries = generate_search_queries(profile)
-        web_context = batch_retrieve(search_queries, max_sources=40)
+        web_context = batch_retrieve(search_queries, max_sources=RAG_MAX_SOURCES)
     except Exception as e:
         print("RAG FAILED:", e)
         web_context = ""
 
-    web_context = web_context[:12000]  # token limit safety
+    web_context = web_context[:RAG_CONTEXT_CHAR_LIMIT]
 
     # ==================================================
     # O*NET ROLE CONTEXT
@@ -201,9 +201,9 @@ CRITICAL CONTENT REQUIREMENTS:
 """
 
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model=LLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
+        temperature=LLM_TEMPERATURE,
         response_format={"type": "json_object"}
     )
 
@@ -345,7 +345,7 @@ async def get_phase_test(
         "phase_name": phase_data.get("phase", f"Phase {phase_index + 1}"),
         "questions": questions_without_answers,
         "total_questions": len(questions),
-        "passing_score": 70
+        "passing_score": TEST_PASSING_SCORE
     }
 
 
@@ -380,7 +380,7 @@ async def submit_test(
             correct_count += 1
 
     score = int((correct_count / len(questions)) * 100) if len(questions) > 0 else 0
-    passed = score >= 70
+    passed = score >= TEST_PASSING_SCORE
 
     # Save attempt
     attempt = TestAttempt(

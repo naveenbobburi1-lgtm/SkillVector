@@ -4,7 +4,9 @@ from typing import Generator
 import os
 from dotenv import load_dotenv
 load_dotenv()
-db_uri = os.getenv("DATABASE_URL", "postgresql://postgres:06122004@localhost:5432/products")
+db_uri = os.getenv("DATABASE_URL")
+if not db_uri:
+    raise RuntimeError("DATABASE_URL environment variable is required")
 
 # Supabase (and some platforms) may give 'postgres://' — SQLAlchemy requires 'postgresql://'
 if db_uri.startswith("postgres://"):

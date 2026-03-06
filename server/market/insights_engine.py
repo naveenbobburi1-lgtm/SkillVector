@@ -51,6 +51,7 @@ from groq import Groq
 import os
 import json
 from rag.retriever import clean_llm_json
+from config import LLM_MODEL, LLM_TEMPERATURE
 
 def analyze_role_outlook(role_name: str):
     """
@@ -80,9 +81,9 @@ def analyze_role_outlook(role_name: str):
         """
 
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=LLM_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
+            temperature=LLM_TEMPERATURE,
             response_format={"type": "json_object"}
         )
         
