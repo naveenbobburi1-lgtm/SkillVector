@@ -60,12 +60,12 @@ async def generate_learning_path(
 
     try:
         search_queries = generate_search_queries(profile)
-        web_context = batch_retrieve(search_queries, max_sources=20)
+        web_context = batch_retrieve(search_queries, max_sources=40)
     except Exception as e:
         print("RAG FAILED:", e)
         web_context = ""
 
-    web_context = web_context[:6000]  # token limit safety
+    web_context = web_context[:12000]  # token limit safety
 
     # ==================================================
     # O*NET ROLE CONTEXT
@@ -107,6 +107,7 @@ IMPORTANT INSTRUCTIONS (STRICT):
 - Do NOT invent links, platforms, or book names.
 - If a resource is not present in SOURCES, do NOT include it.
 - YouTube videos or playlists from SOURCES are allowed for Courses.
+- NEVER repeat the same resource across different phases. Each phase MUST have unique resources that are not used in any other phase. If the same URL or title appears in Phase 1, it must NOT appear in Phase 2, Phase 3, etc. Distribute the available sources so each phase gets different, phase-appropriate resources.
 
 SOURCES:
 {web_context}
