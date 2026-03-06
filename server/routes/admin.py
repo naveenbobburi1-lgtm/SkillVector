@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, and_, or_, case
+from sqlalchemy import func, desc, and_, or_, case, cast, Date
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 from db.database import get_db
@@ -109,10 +109,11 @@ async def admin_analytics(
 
     # Users by registration date (last 30 days)
     thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    date_col = cast(UserDB.created_at, Date)
     daily_registrations = db.query(
-        func.date(UserDB.created_at).label("date"),
+        date_col.label("date"),
         func.count(UserDB.id).label("count")
-    ).filter(UserDB.created_at >= thirty_days_ago).group_by(func.date(UserDB.created_at)).order_by("date").all()
+    ).filter(UserDB.created_at >= thirty_days_ago).group_by(date_col).order_by(date_col).all()
 
     # Skill frequency analysis
     all_profiles = db.query(UserProfile.skills).filter(UserProfile.skills != None).all()
