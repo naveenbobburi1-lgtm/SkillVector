@@ -260,8 +260,8 @@ export default function AdminUserDetailPage() {
                   Certifications
                 </h3>
                 <div className="flex flex-wrap gap-1.5">
-                  {profile.certifications.map((c: string, i: number) => (
-                    <span key={i} className="px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/5 text-emerald-600 border border-emerald-500/12">{c}</span>
+                  {profile.certifications.map((c: any, i: number) => (
+                    <span key={i} className="px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/5 text-emerald-600 border border-emerald-500/12">{typeof c === "object" ? `${c.title} — ${c.issuer}` : c}</span>
                   ))}
                 </div>
               </div>

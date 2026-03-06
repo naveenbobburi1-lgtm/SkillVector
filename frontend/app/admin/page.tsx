@@ -150,7 +150,7 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Registration Trend */}
         <div className="bg-surface-1 border border-border rounded-2xl p-6 card-hover animate-fadeInUp stagger-6">
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="text-sm font-semibold text-text-main">Registration Trend</h3>
               <p className="text-[11px] text-text-dim mt-0.5">Last 30 days</p>
@@ -160,35 +160,56 @@ export default function AdminDashboard() {
               <span className="text-[10px] text-primary font-medium">Live</span>
             </div>
           </div>
-          {(analytics.daily_registrations || []).length === 0 ? (
-            <div className="h-36 flex items-center justify-center text-text-dim text-sm">No registration data</div>
-          ) : (
-            <div className="relative">
-              <div className="flex items-end gap-[3px] h-36">
-                {analytics.daily_registrations.map((d: any, i: number) => {
-                  const max = Math.max(...analytics.daily_registrations.map((x: any) => x.count), 1);
-                  const height = Math.max((d.count / max) * 100, 3);
-                  return (
-                    <div key={i} className="flex-1 flex flex-col items-center group relative">
-                      <div className="absolute -top-8 opacity-0 group-hover:opacity-100 transition-all duration-200 text-[10px] bg-text-main text-white px-2 py-1 rounded-lg shadow-lg whitespace-nowrap z-10 pointer-events-none">
-                        <div className="font-medium">{d.count} users</div>
-                        <div className="text-white/60 text-[9px]">{d.date}</div>
-                        <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-text-main" />
+          {(() => {
+            const barColors = [
+              ['#818cf8','#6366f1'], // indigo
+              ['#34d399','#10b981'], // emerald
+              ['#f472b6','#ec4899'], // pink
+              ['#fb923c','#f97316'], // orange
+              ['#38bdf8','#0ea5e9'], // sky
+              ['#a78bfa','#8b5cf6'], // violet
+              ['#fbbf24','#f59e0b'], // amber
+            ];
+            const regs = analytics.daily_registrations || [];
+            if (regs.length === 0) return (
+              <div className="h-40 flex items-center justify-center text-text-dim text-sm">No registration data</div>
+            );
+            const max = Math.max(...regs.map((x: any) => x.count), 1);
+            return (
+              <div className="relative">
+                <div className="flex gap-[3px] h-40">
+                  {regs.map((d: any, i: number) => {
+                    const height = Math.max((d.count / max) * 100, 4);
+                    const [light, solid] = barColors[i % barColors.length];
+                    return (
+                      <div key={i} className="flex-1 h-full flex flex-col items-center justify-end group relative">
+                        <div className="absolute -top-8 opacity-0 group-hover:opacity-100 transition-all duration-200 text-[10px] bg-text-main text-white px-2 py-1 rounded-lg shadow-lg whitespace-nowrap z-10 pointer-events-none">
+                          <div className="font-medium">{d.count} users</div>
+                          <div className="text-white/60 text-[9px]">{d.date}</div>
+                          <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-text-main" />
+                        </div>
+                        <div
+                          className="w-full rounded-t transition-all duration-200 animate-bar-grow-vertical origin-bottom"
+                          style={{
+                            height: `${height}%`,
+                            background: `linear-gradient(to top, ${solid}, ${light})`,
+                            opacity: 0.75,
+                            animationDelay: `${i * 40}ms`,
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                          onMouseLeave={e => (e.currentTarget.style.opacity = '0.75')}
+                        />
                       </div>
-                      <div
-                        className="w-full rounded-t-sm bg-primary/20 hover:bg-primary/40 transition-all duration-200 animate-bar-grow"
-                        style={{ height: `${height}%`, animationDelay: `${i * 20}ms` }}
-                      />
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between mt-1.5 text-[9px] text-text-dim">
+                  <span>{regs[0]?.date}</span>
+                  <span>{regs[regs.length - 1]?.date}</span>
+                </div>
               </div>
-              <div className="flex justify-between mt-2 text-[9px] text-text-dim">
-                <span>{analytics.daily_registrations[0]?.date}</span>
-                <span>{analytics.daily_registrations[analytics.daily_registrations.length - 1]?.date}</span>
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* Top Desired Roles */}
