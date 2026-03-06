@@ -70,7 +70,14 @@ export default function Step1Basic({ data, updateData }: Step1Props) {
                             {["Student", "Employed", "Unemployed", "Self-Employed"].map((status) => (
                                 <button
                                     key={status}
-                                    onClick={() => updateData({ current_status: status })}
+                                    onClick={() => {
+                                        const update: Partial<UserProfileData> = { current_status: status };
+                                        if (status !== "Employed" && status !== "Self-Employed") {
+                                            update.current_role = undefined;
+                                            update.current_industry = undefined;
+                                        }
+                                        updateData(update);
+                                    }}
                                     className={`relative p-4 rounded-xl border flex flex-col items-center justify-center gap-3 transition-all duration-300 group overflow-hidden ${data.current_status === status
                                             ? "bg-primary/10 border-primary shadow-[0_0_20px_rgba(var(--primary-rgb),0.15)] ring-1 ring-primary transform scale-[1.02]"
                                             : "bg-surface-1 border-border hover:bg-surface-2 hover:border-primary/50"
@@ -92,6 +99,38 @@ export default function Step1Basic({ data, updateData }: Step1Props) {
                             ))}
                         </div>
                     </div>
+
+                    {/* Employed-specific fields */}
+                    {(data.current_status === "Employed" || data.current_status === "Self-Employed") && (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                            <div className="space-y-3">
+                                <label className="text-sm font-semibold text-text-dim uppercase tracking-wider ml-1">Current Role</label>
+                                <div className="relative group">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-text-muted group-focus-within:text-primary transition-colors">badge</span>
+                                    <input
+                                        type="text"
+                                        value={data.current_role || ""}
+                                        onChange={(e) => updateData({ current_role: e.target.value })}
+                                        className="w-full bg-surface-1 border border-border rounded-xl pl-12 pr-4 py-4 text-text-main focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all placeholder:text-text-muted/30 shadow-sm"
+                                        placeholder="e.g. Business Development Manager"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-sm font-semibold text-text-dim uppercase tracking-wider ml-1">Current Industry</label>
+                                <div className="relative group">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-text-muted group-focus-within:text-primary transition-colors">domain</span>
+                                    <input
+                                        type="text"
+                                        value={data.current_industry || ""}
+                                        onChange={(e) => updateData({ current_industry: e.target.value })}
+                                        className="w-full bg-surface-1 border border-border rounded-xl pl-12 pr-4 py-4 text-text-main focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all placeholder:text-text-muted/30 shadow-sm"
+                                        placeholder="e.g. Finance, Healthcare, Tech"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 

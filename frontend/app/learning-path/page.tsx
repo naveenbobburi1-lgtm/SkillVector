@@ -359,7 +359,7 @@ export default function LearningPathPage() {
                     <div className="space-y-3">
                       <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider">Week-by-Week Breakdown</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {phase.weekly_breakdown.map((week: any, wIndex: number) => (
+                        {phase.weekly_breakdown?.map((week: any, wIndex: number) => (
                           <div key={wIndex} className="bg-surface-1 border border-border rounded-xl p-4">
                             <div className="flex items-center gap-2 mb-3">
                               <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -402,7 +402,7 @@ export default function LearningPathPage() {
                     <div>
                       <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-3">Skills Acquired</h3>
                       <div className="flex flex-wrap gap-2">
-                        {phase.skills.map((skill: string, sIndex: number) => (
+                        {phase.skills?.map((skill: string, sIndex: number) => (
                           <span key={sIndex} className="px-3 py-1 rounded-full bg-surface-2 border border-border text-xs font-medium text-text-muted hover:text-text-main hover:border-primary/50 transition-colors cursor-default">
                             {skill}
                           </span>
@@ -415,7 +415,7 @@ export default function LearningPathPage() {
                   <div className="space-y-4">
                     <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-2">Curated Resources</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {phase.resources.map((resource: any, rIndex: number) => (
+                      {phase.resources?.map((resource: any, rIndex: number) => (
                         <a key={rIndex} href={resource.link} target="_blank" rel="noopener noreferrer" className="group flex flex-col p-4 bg-surface-1 border border-border rounded-xl hover:border-primary/50 transition-all">
                           <div className="flex justify-between items-start mb-2">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
@@ -436,7 +436,7 @@ export default function LearningPathPage() {
                   <div className="space-y-4">
                     <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider mb-2">Hands-on Projects</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {phase.projects.map((project: any, pIndex: number) => (
+                      {phase.projects?.map((project: any, pIndex: number) => (
                         <div key={pIndex} className="bg-surface-1 border border-border rounded-xl p-5">
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-3">

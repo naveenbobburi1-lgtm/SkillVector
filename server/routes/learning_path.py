@@ -96,6 +96,7 @@ You are an AI system that generates structured learning paths.
 CRITICAL INSTRUCTIONS:
 - The generated path MUST fit exactly within the 'Target Timeline' specified by the user (e.g., if target is 3 months, total duration must be approx 3 months). Adjust the scope and depth of modules to fit this constraint.
 - EDUCATION CALIBRATION: Use the user's education level to set the starting depth of the path. High School → include all fundamentals, assume no prior domain knowledge, explain concepts from scratch. Diploma → assume basic technical awareness, skip absolute beginner material. Undergraduate → assume solid domain foundations, skip fundamentals entirely, begin at intermediate. Postgraduate/PhD → assume deep theoretical knowledge, focus on advanced specialization and application. The meta.level field must reflect this (Beginner / Intermediate / Advanced).
+- CAREER TRANSITION: If the user is currently employed or self-employed and their current role differs from the target role, this is a CAREER TRANSITION. Analyze the user's current role and industry to identify TRANSFERABLE SKILLS (e.g., project management, communication, domain knowledge, analytical thinking) that can accelerate the transition. Start the learning path by bridging from what they already know in their current role. Acknowledge their professional experience and leverage it — do NOT treat them as absolute beginners. In the first phase, explicitly connect their existing professional skills to the target role. For example, a Business Development Manager transitioning to DevOps already has stakeholder management, process optimization, and cross-team collaboration skills that map to DevOps culture and CI/CD pipeline management.
 - RESOURCE LANGUAGE: The user prefers learning resources in '{instruction_language}'. When selecting from SOURCES, prioritize courses, videos, articles, and tutorials that are in {instruction_language} or have {instruction_language} subtitles/dubbing available. If {instruction_language} resources are unavailable in SOURCES, fall back to English. All learning path structure text (phase names, why_this_phase, topics, objectives, tasks, project descriptions) must stay in English.
 - CONTENT FORMAT: The user prefers these learning formats: {', '.join(learning_formats) if learning_formats else 'Any'}. Prioritize resources that match — if 'Video / Online' is preferred, favor video courses and YouTube playlists; if 'Text / Reading', favor articles and books; if 'Hands-on', favor interactive platforms and project-based resources.
 - INDUSTRY CONTEXT: The user is targeting the {', '.join(industries) if industries else 'general'} industry/industries. Tailor examples, projects, and use cases to these industries wherever relevant.
@@ -125,6 +126,8 @@ USER DETAILS:
 - Target Role: {profile.desired_role}
 - Current Education: {profile.education_level}
 - Current Status: {profile.current_status}
+{f'- Current Role: {profile.current_role}' if profile.current_role else ''}
+{f'- Current Industry: {profile.current_industry}' if profile.current_industry else ''}
 - Location: {profile.location}
 - Existing Skills: {', '.join(skills) if skills else 'None'}
 - Preferred Industries: {', '.join(industries) if industries else 'Not specified'}

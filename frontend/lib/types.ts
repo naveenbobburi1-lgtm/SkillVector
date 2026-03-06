@@ -3,6 +3,8 @@ export interface UserProfileData {
     phone?: string;
     education_level?: string;
     current_status?: string;
+    current_role?: string;
+    current_industry?: string;
     location?: string;
     skills?: string[];
     certifications?: { title: string; issuer: string }[];

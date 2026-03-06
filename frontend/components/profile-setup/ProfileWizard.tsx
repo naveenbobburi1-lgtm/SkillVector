@@ -33,6 +33,8 @@ export default function ProfileWizard() {
                         phone: profile.phone,
                         education_level: profile.education_level,
                         current_status: profile.current_status,
+                        current_role: profile.current_role,
+                        current_industry: profile.current_industry,
                         location: profile.location,
                         skills: profile.skills || [],
                         certifications: profile.certifications || [],
