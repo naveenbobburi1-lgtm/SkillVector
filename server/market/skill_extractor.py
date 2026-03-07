@@ -81,6 +81,7 @@ def extract_skills_with_llm(role_name: str, top_n=10):
     import os
     import json
     from rag.retriever import clean_llm_json
+    from config import LLM_MODEL
     
     try:
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
@@ -102,7 +103,7 @@ def extract_skills_with_llm(role_name: str, top_n=10):
         """
 
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=LLM_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
             response_format={"type": "json_object"}

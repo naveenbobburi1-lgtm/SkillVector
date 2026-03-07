@@ -41,6 +41,18 @@ export default function Step5Review({ data, onSubmit, isSubmitting, consentGiven
                                 <div className="text-xs text-text-muted uppercase font-semibold">Status</div>
                                 <div className="text-text-main font-medium">{data.current_status || "-"}</div>
                             </div>
+                            {(data.current_status === "Employed" || data.current_status === "Self-Employed") && data.current_role && (
+                                <div>
+                                    <div className="text-xs text-text-muted uppercase font-semibold">Current Role</div>
+                                    <div className="text-text-main font-medium">{data.current_role}</div>
+                                </div>
+                            )}
+                            {(data.current_status === "Employed" || data.current_status === "Self-Employed") && data.current_industry && (
+                                <div>
+                                    <div className="text-xs text-text-muted uppercase font-semibold">Current Industry</div>
+                                    <div className="text-text-main font-medium">{data.current_industry}</div>
+                                </div>
+                            )}
                             <div>
                                 <div className="text-xs text-text-muted uppercase font-semibold">Location</div>
                                 <div className="text-text-main font-medium">{data.location || "-"}</div>

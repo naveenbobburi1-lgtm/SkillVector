@@ -10,6 +10,8 @@ class UserProfileCreate(BaseModel):
     phone: str | None = None
     education_level: str | None = None
     current_status: str | None = None
+    current_role: str | None = None
+    current_industry: str | None = None
     location: str | None = None
     skills: list[str] | None = None
     certifications: list[dict] | None = None

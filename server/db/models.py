@@ -16,58 +16,6 @@ class UserDB(Base):
     is_admin = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    profile = sqlalchemy.orm.relationship("ProfileDB", back_populates="user", uselist=False)
-
-
-class ProfileDB(Base):
-    __tablename__ = "profiles"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, sqlalchemy.ForeignKey("users.id"), unique=True, nullable=False)
-    full_name = Column(String)
-    age = Column(Integer)
-    education = Column(String)
-    current_status = Column(String)
-    location = Column(String)
-    total_experience = Column(String)
-
-    user = sqlalchemy.orm.relationship("UserDB", back_populates="profile")
-    skills = sqlalchemy.orm.relationship("SkillDB", back_populates="profile", cascade="all, delete-orphan")
-    certifications = sqlalchemy.orm.relationship("CertificationDB", back_populates="profile", cascade="all, delete-orphan")
-    career_goals = sqlalchemy.orm.relationship("CareerGoalDB", back_populates="profile", cascade="all, delete-orphan")
-
-
-class SkillDB(Base):
-    __tablename__ = "skills"
-
-    id = Column(Integer, primary_key=True, index=True)
-    profile_id = Column(Integer, sqlalchemy.ForeignKey("profiles.id"), nullable=False)
-    name = Column(String, nullable=False)
-    category = Column(String)  # e.g., 'Primary', 'Informal'
-
-    profile = sqlalchemy.orm.relationship("ProfileDB", back_populates="skills")
-
-
-class CertificationDB(Base):
-    __tablename__ = "certifications"
-
-    id = Column(Integer, primary_key=True, index=True)
-    profile_id = Column(Integer, sqlalchemy.ForeignKey("profiles.id"), nullable=False)
-    name = Column(String, nullable=False)
-    issuer = Column(String)
-
-    profile = sqlalchemy.orm.relationship("ProfileDB", back_populates="certifications")
-
-
-class CareerGoalDB(Base):
-    __tablename__ = "career_goals"
-
-    id = Column(Integer, primary_key=True, index=True)
-    profile_id = Column(Integer, sqlalchemy.ForeignKey("profiles.id"), nullable=False)
-    title = Column(String, nullable=False)
-    description = Column(String)
-
-    profile = sqlalchemy.orm.relationship("ProfileDB", back_populates="career_goals")
 
 class UserProfile(Base):
     __tablename__ = "user_profiles"
@@ -78,6 +26,8 @@ class UserProfile(Base):
     phone = Column(String, nullable=True)
     education_level = Column(String, nullable=True)
     current_status = Column(String, nullable=True)
+    current_role = Column(String, nullable=True)
+    current_industry = Column(String, nullable=True)
     location = Column(String, nullable=True)
     skills = Column(String, nullable=True) # Stored as JSON string
     certifications = Column(String, nullable=True) # Stored as JSON string

@@ -9,6 +9,8 @@ def clean_llm_json(text: str) -> str:
     text = text.strip()
     if text.startswith("```"):
         text = text.split("```")[1]
+        # Strip language identifier (e.g. "json\n{...}" -> "{...}")
+        text = text.split("\n", 1)[-1] if "\n" in text else text
     return text.strip()
 
 def retrieve_web_context(query: str) -> list[dict]:

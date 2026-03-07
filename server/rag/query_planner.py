@@ -2,6 +2,7 @@ import os
 import json
 from groq import Groq
 from dotenv import load_dotenv
+from config import LLM_MODEL, LLM_TEMPERATURE
 
 load_dotenv()
 
@@ -34,9 +35,9 @@ Rules:
 """
 
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model=LLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.2
+        temperature=LLM_TEMPERATURE
     )
 
     raw = response.choices[0].message.content.strip()
@@ -46,15 +47,34 @@ Rules:
         queries = json.loads(raw)
         if not isinstance(queries, list):
             raise ValueError("Queries not list")
-        return queries
     except Exception:
         # fallback (system still works)
-        return [
+        queries = [
             f"{profile.desired_role} learning roadmap",
             f"best YouTube playlists for {profile.desired_role}",
             f"{profile.desired_role} free courses",
             f"{profile.desired_role} beginner to advanced"
         ]
+
+    # Always inject explicit language-specific queries if not English
+    if language and language.lower() != "english":
+        queries.extend([
+            f"{profile.desired_role} tutorial in {language}",
+            f"{profile.desired_role} course {language} language",
+            f"{profile.desired_role} YouTube {language}",
+        ])
+
+    # Always inject explicit industry-specific queries
+    if industries:
+        for ind in industries[:2]:
+            queries.extend([
+                f"{profile.desired_role} in {ind} industry",
+                f"{profile.desired_role} {ind} projects tutorials",
+            ])
+            if language and language.lower() != "english":
+                queries.append(f"{profile.desired_role} {ind} {language}")
+
+    return queries
 if __name__ == "__main__":
     class Profile:
         desired_role = "Data Scientist"
