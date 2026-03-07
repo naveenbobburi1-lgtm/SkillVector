@@ -300,7 +300,7 @@ export default function LearningPathPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 flex-wrap mb-2">
                         <h2 className="text-2xl font-bold text-text-main">
-                          Phase {index + 1}: {phase.phase || phase.stage}
+                           {phase.phase || phase.stage}
                         </h2>
                         {isLocked && <span className="px-2 py-1 rounded text-xs font-bold bg-surface-2 text-text-dim flex items-center gap-1 flex-shrink-0">
                           <span className="material-symbols-outlined text-sm">lock</span>

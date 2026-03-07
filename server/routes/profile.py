@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from db.database import get_db
 from db.models import UserDB, UserProfile, MarketInsightsCache
@@ -12,8 +12,43 @@ from market.skill_extractor import extract_top_skills, extract_skills_with_llm
 import market.role_matcher as role_matcher
 import market.insights_engine as insights_engine
 import json
+import re as _re
 
 router = APIRouter()
+
+# ── Suggestion / autocomplete endpoints (public O*NET data) ──────────
+
+@router.get("/suggestions/skills")
+async def suggest_skills(q: str = Query("", min_length=1, max_length=100)):
+    """Return up to 15 skill names from O*NET Technology Skills matching the query."""
+    tech_skills_df = ONET_CACHE.get("tech_skills")
+    if tech_skills_df is None:
+        return []
+
+    query_lower = _re.escape(q.lower())
+    col = "Example"  # column holding the tool/technology name
+    matches = tech_skills_df[tech_skills_df[col].str.lower().str.contains(query_lower, na=False)]
+
+    # Deduplicate and sort: prioritise Hot Technology, then In Demand, then alpha
+    matches = matches.drop_duplicates(subset=[col])
+    matches = matches.sort_values(
+        by=["Hot Technology", "In Demand", col],
+        ascending=[False, False, True],
+    )
+    return matches[col].head(15).tolist()
+
+
+@router.get("/suggestions/roles")
+async def suggest_roles(q: str = Query("", min_length=1, max_length=100)):
+    """Return up to 15 occupation titles from O*NET matching the query."""
+    occupations_df = ONET_CACHE.get("occupations")
+    if occupations_df is None:
+        return []
+
+    query_lower = _re.escape(q.lower())
+    col = "Title"
+    matches = occupations_df[occupations_df[col].str.lower().str.contains(query_lower, na=False)]
+    return matches[col].head(15).tolist()
 
 
 @router.get("/user-profile")
