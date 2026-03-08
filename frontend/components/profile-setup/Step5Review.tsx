@@ -71,7 +71,7 @@ export default function Step5Review({ data, onSubmit, isSubmitting, consentGiven
                                 <div className="text-xs text-text-muted uppercase font-semibold mb-2">Core Skills</div>
                                 <div className="flex flex-wrap gap-2">
                                     {data.skills?.map(s => (
-                                        <span key={s} className="bg-surface-2 border border-border px-3 py-1 rounded-lg text-sm font-medium text-text-main">{s}</span>
+                                        <span key={s.name} className="bg-surface-2 border border-border px-3 py-1 rounded-lg text-sm font-medium text-text-main">{s.name} <span className="text-[10px] text-text-muted uppercase">({s.proficiency})</span></span>
                                     )) || <span className="text-text-muted italic">None</span>}
                                 </div>
                             </div>

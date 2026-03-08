@@ -11,7 +11,7 @@ export default function Step4Constraints({ data, updateData }: StepProps) {
     const learningFormats = [
         { name: "Video / Online", icon: "play_circle" },
         { name: "Hands-on", icon: "precision_manufacturing" },
-        { name: "On-the-job", icon: "work_history" },
+        { name: "Interactive / Labs", icon: "science" },
         { name: "Text / Reading", icon: "menu_book" }
     ];
 

@@ -5,11 +5,12 @@ import { useState } from "react";
 interface AddSkillModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (skill: string) => void;
+    onSubmit: (skill: string, proficiency: string) => void;
 }
 
 export default function AddSkillModal({ isOpen, onClose, onSubmit }: AddSkillModalProps) {
     const [skillName, setSkillName] = useState("");
+    const [proficiency, setProficiency] = useState("beginner");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     if (!isOpen) return null;
@@ -19,8 +20,9 @@ export default function AddSkillModal({ isOpen, onClose, onSubmit }: AddSkillMod
         if (!skillName.trim()) return;
 
         setIsSubmitting(true);
-        await onSubmit(skillName.trim());
+        await onSubmit(skillName.trim(), proficiency);
         setSkillName("");
+        setProficiency("beginner");
         setIsSubmitting(false);
         onClose();
     };
@@ -62,6 +64,23 @@ export default function AddSkillModal({ isOpen, onClose, onSubmit }: AddSkillMod
                             autoFocus
                             disabled={isSubmitting}
                         />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-text-dim uppercase tracking-wider mb-2">
+                            Proficiency Level <span className="text-error">*</span>
+                        </label>
+                        <select
+                            value={proficiency}
+                            onChange={(e) => setProficiency(e.target.value)}
+                            className="w-full px-4 py-3 bg-surface-2 border border-border rounded-xl text-text-main focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all appearance-none cursor-pointer"
+                            required
+                            disabled={isSubmitting}
+                        >
+                            <option value="beginner">Beginner</option>
+                            <option value="intermediate">Intermediate</option>
+                            <option value="advanced">Advanced</option>
+                        </select>
                     </div>
 
                     <div className="bg-surface-2/50 border border-border/50 rounded-xl p-4">

@@ -246,8 +246,8 @@ export default function AdminUserDetailPage() {
               </h3>
               {profile?.skills?.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5">
-                  {profile.skills.map((s: string, i: number) => (
-                    <span key={i} className="px-2.5 py-1 rounded-lg text-xs font-medium bg-primary/5 text-primary border border-primary/12 animate-scaleIn" style={{ animationDelay: `${i * 30}ms` }}>{s}</span>
+                  {profile.skills.map((s: any, i: number) => (
+                    <span key={i} className="px-2.5 py-1 rounded-lg text-xs font-medium bg-primary/5 text-primary border border-primary/12 animate-scaleIn" style={{ animationDelay: `${i * 30}ms` }}>{typeof s === "object" ? s.name : s}</span>
                   ))}
                 </div>
               ) : <p className="text-text-dim text-sm italic">No skills listed</p>}

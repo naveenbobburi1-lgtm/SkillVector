@@ -28,7 +28,8 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
             raise HTTPException(status_code=400, detail="Profile not found")
 
         user_role = profile.desired_role
-        user_skills = json.loads(profile.skills) if profile.skills else []
+        user_skills_raw = json.loads(profile.skills) if profile.skills else []
+        user_skills = [s["name"] if isinstance(s, dict) else s for s in user_skills_raw]
 
         # Check cache first
         cache = get_valid_cache(current_user.id, user_role, db)

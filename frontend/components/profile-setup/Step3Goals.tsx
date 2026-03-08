@@ -1,6 +1,8 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import { UserProfileData } from "@/lib/types";
+import { API_BASE_URL } from "@/lib/auth";
 
 interface StepProps {
     data: UserProfileData;
@@ -8,6 +10,81 @@ interface StepProps {
 }
 
 export default function Step3Goals({ data, updateData }: StepProps) {
+    const [roleInput, setRoleInput] = useState(data.desired_role || "");
+    const [roleSuggestions, setRoleSuggestions] = useState<string[]>([]);
+    const [showRoleSuggestions, setShowRoleSuggestions] = useState(false);
+    const [roleHighlightIdx, setRoleHighlightIdx] = useState(-1);
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const roleWrapperRef = useRef<HTMLDivElement>(null);
+
+    // Sync external data changes into local input
+    useEffect(() => {
+        setRoleInput(data.desired_role || "");
+    }, [data.desired_role]);
+
+    // Close dropdown on outside click
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (roleWrapperRef.current && !roleWrapperRef.current.contains(e.target as Node)) {
+                setShowRoleSuggestions(false);
+            }
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
+
+    // Fetch role suggestions with debounce
+    useEffect(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        const trimmed = roleInput.trim();
+        if (trimmed.length < 2) {
+            setRoleSuggestions([]);
+            setShowRoleSuggestions(false);
+            return;
+        }
+        debounceRef.current = setTimeout(async () => {
+            try {
+                const res = await fetch(
+                    `${API_BASE_URL}/suggestions/roles?q=${encodeURIComponent(trimmed)}`
+                );
+                if (res.ok) {
+                    const list: string[] = await res.json();
+                    setRoleSuggestions(list);
+                    setShowRoleSuggestions(list.length > 0);
+                    setRoleHighlightIdx(-1);
+                }
+            } catch {
+                /* degrade to free-text */
+            }
+        }, 250);
+        return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    }, [roleInput]);
+
+    const selectRole = (role: string) => {
+        setRoleInput(role);
+        updateData({ desired_role: role });
+        setShowRoleSuggestions(false);
+        setRoleSuggestions([]);
+    };
+
+    const handleRoleKeyDown = (e: React.KeyboardEvent) => {
+        if (!showRoleSuggestions || roleSuggestions.length === 0) return;
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setRoleHighlightIdx((prev) => (prev + 1) % roleSuggestions.length);
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setRoleHighlightIdx((prev) => (prev <= 0 ? roleSuggestions.length - 1 : prev - 1));
+        } else if (e.key === "Enter") {
+            e.preventDefault();
+            if (roleHighlightIdx >= 0 && roleHighlightIdx < roleSuggestions.length) {
+                selectRole(roleSuggestions[roleHighlightIdx]);
+            }
+        } else if (e.key === "Escape") {
+            setShowRoleSuggestions(false);
+        }
+    };
+
     const industries = [
         { name: "IT & ITES", icon: "computer" },
         { name: "Healthcare", icon: "medical_services" },
@@ -40,7 +117,7 @@ export default function Step3Goals({ data, updateData }: StepProps) {
             <div className="space-y-8">
 
                 {/* Job Role - Hero Input */}
-                <div className="bg-gradient-to-br from-surface-1 to-surface-2 border border-border p-8 rounded-3xl shadow-xl relative overflow-hidden group focus-within:ring-2 focus-within:ring-primary/50 transition-all">
+                <div className="bg-gradient-to-br from-surface-1 to-surface-2 border border-border p-8 rounded-3xl shadow-xl relative overflow-visible group focus-within:ring-2 focus-within:ring-primary/50 transition-all">
                     <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none group-focus-within:opacity-20 transition-opacity">
                         <span className="material-symbols-outlined text-[100px] text-primary">target</span>
                     </div>
@@ -49,17 +126,39 @@ export default function Step3Goals({ data, updateData }: StepProps) {
                         <label className="text-sm font-bold text-text-dim uppercase tracking-wider flex items-center gap-2">
                             Desired Job Role <span className="text-error">*</span>
                         </label>
-                        <div className="relative">
+                        <div className="relative" ref={roleWrapperRef}>
                             <span className="absolute left-0 top-1/2 -translate-y-1/2 material-symbols-outlined text-4xl text-text-muted group-focus-within:text-primary transition-colors">search</span>
                             <input
                                 type="text"
-                                value={data.desired_role || ""}
-                                onChange={(e) => updateData({ desired_role: e.target.value })}
+                                value={roleInput}
+                                onChange={(e) => {
+                                    setRoleInput(e.target.value);
+                                    updateData({ desired_role: e.target.value });
+                                }}
+                                onKeyDown={handleRoleKeyDown}
+                                onFocus={() => { if (roleSuggestions.length > 0) setShowRoleSuggestions(true); }}
                                 className="w-full bg-transparent border-b-2 border-border py-4 pl-12 text-3xl font-bold text-text-main focus:border-primary outline-none transition-all placeholder:text-text-muted/20"
                                 placeholder="e.g. Data Scientist"
+                                autoComplete="off"
                             />
+
+                            {/* Role suggestions dropdown */}
+                            {showRoleSuggestions && roleSuggestions.length > 0 && (
+                                <ul className="absolute z-50 left-0 right-0 mt-1 max-h-64 overflow-y-auto bg-surface-1 border border-border rounded-xl shadow-2xl shadow-black/20 divide-y divide-border/50">
+                                    {roleSuggestions.map((role, idx) => (
+                                        <li
+                                            key={role}
+                                            onMouseDown={() => selectRole(role)}
+                                            className={`px-5 py-3.5 cursor-pointer transition-colors flex items-center gap-3 ${idx === roleHighlightIdx ? "bg-primary/10 text-primary" : "text-text-main hover:bg-surface-2"}`}
+                                        >
+                                            <span className="material-symbols-outlined text-lg opacity-40">work</span>
+                                            <span className="font-medium">{role}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
-                        <p className="text-sm text-text-muted pl-12">Target specific roles for higher precision matches.</p>
+                        <p className="text-sm text-text-muted pl-12">Start typing to see matching roles, or enter your own.</p>
                     </div>
                 </div>
 
