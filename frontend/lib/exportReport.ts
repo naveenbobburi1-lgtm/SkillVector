@@ -10,7 +10,7 @@ export interface UserProfileForReport {
     education_level?: string;
     current_status?: string;
     location?: string;
-    skills?: string[];
+    skills?: (string | { name: string; proficiency?: string })[];
     certifications?: { title: string; issuer: string }[];
     desired_role?: string;
     preferred_industries?: string[];
