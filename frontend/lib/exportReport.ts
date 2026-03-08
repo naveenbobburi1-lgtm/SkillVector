@@ -328,14 +328,15 @@ export function exportMarketInsightsReport(
 
             let tagX = margin;
             for (const skill of userProfile.skills) {
+                const skillName = typeof skill === "object" ? skill.name : skill;
                 doc.setFontSize(8);
-                const tw = doc.getTextWidth(skill) + 8;
+                const tw = doc.getTextWidth(skillName) + 8;
                 if (tagX + tw > pageWidth - margin) {
                     tagX = margin;
                     y += 12;
                     y = ensureSpace(doc, y, 14);
                 }
-                drawSkillTag(doc, skill, tagX, y, COLORS.primary);
+                drawSkillTag(doc, skillName, tagX, y, COLORS.primary);
                 tagX += tw + 3;
             }
             y += 18;
@@ -424,7 +425,7 @@ export function exportMarketInsightsReport(
                 String(i + 1),
                 s,
                 userProfile?.skills?.some(
-                    (us) => us.toLowerCase() === s.toLowerCase()
+                    (us) => (typeof us === "object" ? us.name : us).toLowerCase() === s.toLowerCase()
                 )
                     ? "You have this"
                     : "Consider learning",
@@ -502,7 +503,7 @@ export function exportMarketInsightsReport(
             head: [["#", "Skill", "Your Status"]],
             body: gapAnalysis.insights.market_required_skills.map((s, i) => {
                 const hasSkill = userProfile?.skills?.some(
-                    (us) => us.toLowerCase() === s.toLowerCase()
+                    (us) => (typeof us === "object" ? us.name : us).toLowerCase() === s.toLowerCase()
                 );
                 return [String(i + 1), s, hasSkill ? "Acquired" : "Missing"];
             }),
@@ -584,7 +585,7 @@ export function exportMarketInsightsReport(
     }
     if (outlook.trending_skills?.length) {
         const trendingNotOwned = outlook.trending_skills.filter(
-            (s) => !userProfile?.skills?.some((us) => us.toLowerCase() === s.toLowerCase())
+            (s) => !userProfile?.skills?.some((us) => (typeof us === "object" ? us.name : us).toLowerCase() === s.toLowerCase())
         );
         if (trendingNotOwned.length > 0) {
             recommendations.push(

@@ -13,7 +13,7 @@ class UserProfileCreate(BaseModel):
     current_role: str | None = None
     current_industry: str | None = None
     location: str | None = None
-    skills: list[str] | None = None
+    skills: list[dict] | list[str] | None = None
     certifications: list[dict] | None = None
     desired_role: str | None = None
     preferred_industries: list[str] | None = None

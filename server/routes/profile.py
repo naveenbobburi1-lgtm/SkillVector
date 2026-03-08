@@ -77,7 +77,7 @@ async def user_profile(
         "current_industry": profile.current_industry,
         "location": profile.location,
         "id": profile.id,
-        "skills": json.loads(profile.skills) if profile.skills else [],
+        "skills": [{"name": s, "proficiency": "beginner"} if isinstance(s, str) else s for s in (json.loads(profile.skills) if profile.skills else [])],
         "certifications": json.loads(profile.certifications) if profile.certifications else [],
         "desired_role": profile.desired_role,
         "preferred_industries": json.loads(profile.preferred_industries) if profile.preferred_industries else [],
@@ -136,7 +136,8 @@ async def profile_analysis(
             ]
 
         # 3. Analyze Gap
-        user_skills = json.loads(profile.skills) if profile.skills else []
+        user_skills_raw = json.loads(profile.skills) if profile.skills else []
+        user_skills = [s["name"] if isinstance(s, dict) else s for s in user_skills_raw]
         insights = insights_engine.generate_market_insights(user_skills, top_market_skills)
         coverage = insights["skill_coverage_percent"]
 
@@ -371,12 +372,21 @@ async def add_skill(
     try:
         current_skills = json.loads(profile.skills) if profile.skills else []
 
-        # Case insensitive check
-        if any(s.lower() == skill_data.skill.lower() for s in current_skills):
-            return {"message": "Skill already exists", "skills": current_skills}
+        # Normalize existing skills to object format
+        normalized = []
+        for s in current_skills:
+            if isinstance(s, str):
+                normalized.append({"name": s, "proficiency": "beginner"})
+            else:
+                normalized.append(s)
 
-        current_skills.append(skill_data.skill)
-        profile.skills = json.dumps(current_skills)
+        # Case insensitive check
+        if any(s["name"].lower() == skill_data.skill.lower() for s in normalized):
+            return {"message": "Skill already exists", "skills": normalized}
+
+        proficiency = skill_data.proficiency if skill_data.proficiency in ("beginner", "intermediate", "advanced") else "beginner"
+        normalized.append({"name": skill_data.skill, "proficiency": proficiency})
+        profile.skills = json.dumps(normalized)
         db.commit()
 
         # Invalidate learning path
@@ -384,7 +394,7 @@ async def add_skill(
         # Invalidate market insights cache (skills changed)
         invalidate_market_insights_cache(current_user.id, db)
 
-        return {"message": "Skill added", "skills": current_skills}
+        return {"message": "Skill added", "skills": normalized}
 
     except Exception as e:
         print(f"Error adding skill: {e}")

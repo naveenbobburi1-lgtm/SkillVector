@@ -2,8 +2,13 @@
 
 import React from "react";
 
+interface SkillItem {
+    name: string;
+    proficiency: string;
+}
+
 interface SkillDNAMatrixProps {
-    skills: string[];
+    skills: SkillItem[];
 }
 
 export default function SkillDNAMatrix({ skills }: SkillDNAMatrixProps) {
@@ -30,12 +35,13 @@ export default function SkillDNAMatrix({ skills }: SkillDNAMatrixProps) {
                             <div key={i} className="group relative">
                                 <span className="px-3 py-1.5 bg-surface-2 border border-border rounded-lg text-sm font-medium text-text-main hover:border-primary/50 hover:text-primary transition-all cursor-default flex items-center gap-2">
                                     <span className="w-1.5 h-1.5 rounded-full bg-primary/70"></span>
-                                    {skill}
+                                    {skill.name}
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider ${
+                                        skill.proficiency === "advanced" ? "bg-success/10 text-success" :
+                                        skill.proficiency === "intermediate" ? "bg-warning/10 text-warning" :
+                                        "bg-info/10 text-info"
+                                    }`}>{skill.proficiency}</span>
                                 </span>
-                                {/* Hover Tooltip */}
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-32 bg-foreground text-surface-1 text-[10px] p-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-center">
-                                    High Market Value
-                                </div>
                             </div>
                         )) : (
                             <span className="text-sm text-text-muted italic px-2">No Verified Skills</span>
@@ -50,7 +56,7 @@ export default function SkillDNAMatrix({ skills }: SkillDNAMatrixProps) {
                         <div className="flex flex-wrap gap-2">
                             {secondarySkills.map((skill, i) => (
                                 <span key={i} className="px-3 py-1 bg-surface-1 border border-border/50 border-dashed rounded-lg text-xs font-medium text-text-muted hover:border-solid hover:border-text-dim transition-all cursor-default">
-                                    {skill}
+                                    {skill.name}
                                 </span>
                             ))}
                         </div>

@@ -1,3 +1,8 @@
+export interface SkillItem {
+    name: string;
+    proficiency: "beginner" | "intermediate" | "advanced";
+}
+
 export interface UserProfileData {
     age?: number;
     phone?: string;
@@ -6,7 +11,7 @@ export interface UserProfileData {
     current_role?: string;
     current_industry?: string;
     location?: string;
-    skills?: string[];
+    skills?: SkillItem[];
     certifications?: { title: string; issuer: string }[];
     desired_role?: string;
     preferred_industries?: string[];

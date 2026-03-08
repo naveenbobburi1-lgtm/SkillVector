@@ -122,7 +122,8 @@ async def admin_analytics(
         try:
             skills = json.loads(p.skills)
             for s in skills:
-                skill_counter[s] = skill_counter.get(s, 0) + 1
+                skill_name = s["name"] if isinstance(s, dict) else s
+                skill_counter[skill_name] = skill_counter.get(skill_name, 0) + 1
         except:
             pass
     top_skills = sorted(skill_counter.items(), key=lambda x: x[1], reverse=True)[:15]

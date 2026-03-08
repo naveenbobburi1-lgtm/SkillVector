@@ -56,7 +56,8 @@ async def ai_assistant(
             learning_context = "Learning path data unavailable."
 
     if profile:
-        user_skills = json.loads(profile.skills) if profile.skills else []
+        user_skills_raw = json.loads(profile.skills) if profile.skills else []
+        user_skills = [s["name"] if isinstance(s, dict) else s for s in user_skills_raw]
         learning_context += f"\nUser's Current Skills: {', '.join(user_skills)}\n"
         learning_context += f"Desired Role: {profile.desired_role or 'N/A'}\n"
 

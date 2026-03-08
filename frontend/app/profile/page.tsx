@@ -64,13 +64,13 @@ export default function ProfilePage() {
     fetchProfile();
   }, [router]);
 
-  const handleAddSkill = async (skill: string) => {
+  const handleAddSkill = async (skill: string, proficiency: string) => {
     const token = getToken();
     try {
       const res = await fetch(`${API_BASE_URL}/add-skill`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ skill }),
+        body: JSON.stringify({ skill, proficiency }),
       });
       if (res.ok) {
         const updated = await res.json();

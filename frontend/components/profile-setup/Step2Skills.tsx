@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { UserProfileData } from "@/lib/types";
+import { UserProfileData, SkillItem } from "@/lib/types";
 import { API_BASE_URL } from "@/lib/auth";
 
 interface StepProps {
@@ -11,6 +11,7 @@ interface StepProps {
 
 export default function Step2Skills({ data, updateData }: StepProps) {
     const [skillInput, setSkillInput] = useState("");
+    const [proficiency, setProficiency] = useState<"beginner" | "intermediate" | "advanced">("beginner");
     const [skillError, setSkillError] = useState("");
     const [certInput, setCertInput] = useState({ title: "", issuer: "" });
     const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -47,7 +48,7 @@ export default function Step2Skills({ data, updateData }: StepProps) {
                 if (res.ok) {
                     const list: string[] = await res.json();
                     // Filter out already-added skills
-                    const current = (data.skills || []).map((s) => s.toLowerCase());
+                    const current = (data.skills || []).map((s) => s.name.toLowerCase());
                     const filtered = list.filter((s) => !current.includes(s.toLowerCase()));
                     setSuggestions(filtered);
                     setShowSuggestions(filtered.length > 0);
@@ -79,10 +80,11 @@ export default function Step2Skills({ data, updateData }: StepProps) {
 
         setSkillError("");
         const currentSkills = data.skills || [];
-        if (!currentSkills.some((s) => s.toLowerCase() === trimmed.toLowerCase())) {
-            updateData({ skills: [...currentSkills, trimmed] });
+        if (!currentSkills.some((s) => s.name.toLowerCase() === trimmed.toLowerCase())) {
+            updateData({ skills: [...currentSkills, { name: trimmed, proficiency }] });
         }
         setSkillInput("");
+        setProficiency("beginner");
         setSuggestions([]);
         setShowSuggestions(false);
     };
@@ -112,9 +114,9 @@ export default function Step2Skills({ data, updateData }: StepProps) {
         }
     };
 
-    const removeSkill = (skillToRemove: string) => {
+    const removeSkill = (skillName: string) => {
         updateData({
-            skills: (data.skills || []).filter((s) => s !== skillToRemove),
+            skills: (data.skills || []).filter((s) => s.name !== skillName),
         });
     };
 
@@ -166,6 +168,16 @@ export default function Step2Skills({ data, updateData }: StepProps) {
                                     placeholder="Type a skill (e.g. React, Project Management)..."
                                     autoComplete="off"
                                 />
+                                <select
+                                    value={proficiency}
+                                    onChange={(e) => setProficiency(e.target.value as "beginner" | "intermediate" | "advanced")}
+                                    className="bg-surface-2 border border-border rounded-xl px-3 py-4 text-text-main focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all appearance-none cursor-pointer text-sm"
+                                    required
+                                >
+                                    <option value="beginner">Beginner</option>
+                                    <option value="intermediate">Intermediate</option>
+                                    <option value="advanced">Advanced</option>
+                                </select>
                                 <button
                                     onClick={addSkill}
                                     disabled={!skillInput.trim()}
@@ -201,9 +213,14 @@ export default function Step2Skills({ data, updateData }: StepProps) {
 
                         <div className="min-h-[100px] bg-background/50 rounded-xl p-4 border border-dashed border-border flex flex-wrap content-start gap-2">
                             {data.skills?.map((skill) => (
-                                <div key={skill} className="bg-surface-1 border border-border pl-3 pr-2 py-1.5 rounded-lg flex items-center gap-2 text-sm text-text-main group hover:border-primary/50 transition-all shadow-sm">
-                                    <span className="font-medium">{skill}</span>
-                                    <button onClick={() => removeSkill(skill)} className="text-text-muted hover:text-error hover:bg-error/10 rounded p-0.5 transition-colors">
+                                <div key={skill.name} className="bg-surface-1 border border-border pl-3 pr-2 py-1.5 rounded-lg flex items-center gap-2 text-sm text-text-main group hover:border-primary/50 transition-all shadow-sm">
+                                    <span className="font-medium">{skill.name}</span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider ${
+                                        skill.proficiency === "advanced" ? "bg-success/10 text-success" :
+                                        skill.proficiency === "intermediate" ? "bg-warning/10 text-warning" :
+                                        "bg-info/10 text-info"
+                                    }`}>{skill.proficiency}</span>
+                                    <button onClick={() => removeSkill(skill.name)} className="text-text-muted hover:text-error hover:bg-error/10 rounded p-0.5 transition-colors">
                                         <span className="material-symbols-outlined text-base">close</span>
                                     </button>
                                 </div>
