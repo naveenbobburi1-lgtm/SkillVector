@@ -55,7 +55,7 @@ if frontend_url:
         url = url.strip()
         if url:
             allowed_origins.append(url)
-
+print("Allowed origins:", allowed_origins)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
