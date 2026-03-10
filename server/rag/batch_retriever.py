@@ -11,12 +11,17 @@ _context_cache: dict[tuple[str, ...], str] = {}
 _MAX_CONTEXT_CACHE = 128
 
 
-async def batch_retrieve(queries: list[str], max_sources: int = 20) -> str:
+async def batch_retrieve(queries: list[str], max_sources: int = 20, language: str = "English") -> str:
     """
     Three-layer retrieval with per-step timing:
       L0 - In-memory context cache  (~0ms, skips everything)
       L1 - pgvector semantic cache   (1 DB round-trip via UNION ALL)
       L2 - Tavily live fetch         (only for cache misses)
+
+    Language-specific queries (those containing the language name for
+    non-English users) always bypass the vector cache and go straight to
+    Tavily, because cached results for those queries are typically English
+    content from a previous user.
     """
     t0 = time.time()
 
@@ -25,6 +30,15 @@ async def batch_retrieve(queries: list[str], max_sources: int = 20) -> str:
     if cache_key in _context_cache:
         print(f"[batch_retrieve] L0 in-memory HIT in {time.time() - t0:.3f}s")
         return _context_cache[cache_key]
+
+    # Identify which queries are language-specific.
+    # These always bypass the vector cache because the cache was seeded by
+    # English users and returns English sources for the same role queries.
+    lang_lower = language.lower()
+    is_lang_specific: list[bool] = [
+        lang_lower not in ("english", "en") and lang_lower in q.lower()
+        for q in queries
+    ]
 
     # Step 1: embed all queries — ONE Mistral call for uncached texts
     t1 = time.time()
@@ -38,6 +52,15 @@ async def batch_retrieve(queries: list[str], max_sources: int = 20) -> str:
     )
     cache_hits = sum(1 for r in results if r is not None)
     miss_indices = [i for i, r in enumerate(results) if r is None]
+
+    # Force language-specific queries to always miss — override any cache hit.
+    # Their cached content is English (from previous users); we need Tavily
+    # to fetch language-specific results (YouTube Telugu, Udemy Hindi, etc.).
+    for i, lang_q in enumerate(is_lang_specific):
+        if lang_q and results[i] is not None:
+            results[i] = None
+            miss_indices.append(i)
+            cache_hits -= 1
     print(
         f"[batch_retrieve] step2 vector-DB ({cache_hits}/{len(queries)} hits, "
         f"{len(miss_indices)} misses): {time.time() - t2:.3f}s"
@@ -47,7 +70,7 @@ async def batch_retrieve(queries: list[str], max_sources: int = 20) -> str:
     if miss_indices:
         t3 = time.time()
         fresh_results = await asyncio.gather(
-            *[retrieve_web_context(queries[i]) for i in miss_indices],
+            *[retrieve_web_context(queries[i], language=language) for i in miss_indices],
             return_exceptions=True,
         )
         print(f"[batch_retrieve] step3 Tavily  ({len(miss_indices)} calls): {time.time() - t3:.3f}s")
@@ -60,9 +83,13 @@ async def batch_retrieve(queries: list[str], max_sources: int = 20) -> str:
                 results[i] = []
             else:
                 results[i] = fresh
-                store_tasks.append(
-                    asyncio.to_thread(store_entry, queries[i], embeddings[i], fresh)
-                )
+                # Don't cache language-specific queries — their results are
+                # only useful for this language and would pollute the cache
+                # (returning non-English sources) for English users same role.
+                if not is_lang_specific[i]:
+                    store_tasks.append(
+                        asyncio.to_thread(store_entry, queries[i], embeddings[i], fresh)
+                    )
         if store_tasks:
             t4 = time.time()
             await asyncio.gather(*store_tasks, return_exceptions=True)
