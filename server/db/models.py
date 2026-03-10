@@ -3,6 +3,7 @@ import sqlalchemy.orm
 import sqlalchemy
 from sqlalchemy.sql import func
 from db.database import Base
+from pgvector.sqlalchemy import Vector
 
 
 class UserDB(Base):
@@ -166,5 +167,33 @@ class MarketInsightsCache(Base):
     role = Column(String, nullable=False)
     gap_analysis = Column(Text, nullable=False)      # JSON: {role, soc_code, insights: {...}}
     profile_insights = Column(Text, nullable=False)   # JSON: {trending_skills, role_growth, ...}
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class QueryPlanCache(Base):
+    """Caches Groq-generated search query plans keyed by role+industries+language.
+    Avoids repeated LLM calls for users with the same target role configuration.
+    TTL: 30 days.
+    """
+    __tablename__ = "query_plan_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # SHA-256 of '{role}|{sorted_industries_json}|{language}' (all lowercased)
+    cache_key = Column(String(64), unique=True, index=True, nullable=False)
+    queries = Column(Text, nullable=False)  # Full JSON array of search query strings
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class RagSourceCache(Base):
+    """Vector cache of web sources fetched per search query.
+    Uses pgvector cosine similarity to find semantically equivalent past queries.
+    TTL: 30 days.
+    """
+    __tablename__ = "rag_source_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    query_text = Column(Text, nullable=False)
+    query_embedding = Column(Vector(1024), nullable=False)  # mistral-embed dimension
+    sources = Column(Text, nullable=False)  # JSON array of {title, url, content}
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

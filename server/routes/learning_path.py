@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text
 from db.database import get_db
 from db.models import UserDB, UserProfile, LearningPath, PhaseProgress, TestAttempt, ActiveTest, MarketInsightsCache
 from auth import get_current_user
@@ -14,6 +14,7 @@ from config import ONET_CACHE, RAG_MAX_SOURCES, RAG_CONTEXT_CHAR_LIMIT, LLM_MODE
 from groq import Groq
 import os
 import json
+import time
 
 router = APIRouter()
 
@@ -29,8 +30,10 @@ async def generate_learning_path(
         raise HTTPException(status_code=400, detail="User profile not found. Please complete your profile first.")
 
     # Return cached path if exists
+    t_cache = time.time()
     existing_path = db.query(LearningPath).filter(LearningPath.user_id == current_user.id).first()
     if existing_path:
+        print(f"[generate-path] DB cache HIT for user {current_user.id} in {time.time() - t_cache:.3f}s")
         path_json = json.loads(existing_path.path_data)
 
         # Ensure phase progress is initialized (even for cached paths)
@@ -45,6 +48,40 @@ async def generate_learning_path(
                 initialize_phase_progress(current_user.id, num_phases, db)
 
         return path_json
+
+    t_total = time.time()
+    print(f"[generate-path] no cached path for user {current_user.id} — starting full generation")
+    # concurrent requests (e.g. React StrictMode double-fires useEffect).
+    # pg_try_advisory_xact_lock is transaction-scoped — auto-released at
+    # commit or rollback, so no explicit unlock is needed and it is safe
+    # with connection pooling.
+    lock_acquired = db.execute(
+        text("SELECT pg_try_advisory_xact_lock(:uid)"),
+        {"uid": current_user.id}
+    ).scalar()
+
+    if not lock_acquired:
+        # Another request is already generating this path — wait for it then
+        # return the result once it commits (poll with a short back-off).
+        import asyncio
+        for _ in range(60):               # max ~30s wait
+            await asyncio.sleep(0.5)
+            db.expire_all()               # force re-read from DB
+            ready = db.query(LearningPath).filter(
+                LearningPath.user_id == current_user.id
+            ).first()
+            if ready:
+                path_json = json.loads(ready.path_data)
+                existing_progress = db.query(PhaseProgress).filter(
+                    PhaseProgress.user_id == current_user.id
+                ).count()
+                if existing_progress == 0:
+                    from utils.test_generator import initialize_phase_progress
+                    num_phases = len(path_json.get("learning_path", []))
+                    if num_phases > 0:
+                        initialize_phase_progress(current_user.id, num_phases, db)
+                return path_json
+        raise HTTPException(status_code=503, detail="Path generation in progress, please retry.")
 
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
@@ -67,18 +104,21 @@ async def generate_learning_path(
     # RAG PIPELINE
     # ==================================================
 
+    t_rag = time.time()
     try:
         search_queries = generate_search_queries(profile)
         web_context = await batch_retrieve(search_queries, max_sources=RAG_MAX_SOURCES)
     except Exception as e:
         print("RAG FAILED:", e)
         web_context = ""
+    print(f"[generate-path] RAG pipeline:  {time.time() - t_rag:.3f}s")
 
     web_context = web_context[:RAG_CONTEXT_CHAR_LIMIT]
 
     # ==================================================
     # O*NET ROLE CONTEXT
     # ==================================================
+    t_onet = time.time()
     role_context = ""
     onet_required_skills = []
     if "occupations" in ONET_CACHE:
@@ -96,6 +136,7 @@ async def generate_learning_path(
             if onet_required_skills:
                 parts.append("Required Technologies: " + ", ".join(onet_required_skills))
             role_context = "\n".join(parts)
+    print(f"[generate-path] O*NET lookup:  {time.time() - t_onet:.3f}s")
 
     # Prompt Construction
 
@@ -210,12 +251,14 @@ CRITICAL CONTENT REQUIREMENTS:
 6. "projects": MINIMUM 3-5 hands-on projects per phase with varying difficulty levels (Easy/Medium/Hard). Tie projects to the user's target industries: {', '.join(industries) if industries else 'general domain'}.
 """
 
+    t_llm = time.time()
     response = client.chat.completions.create(
         model=LLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=LLM_TEMPERATURE,
         response_format={"type": "json_object"}
     )
+    print(f"[generate-path] Groq LLM:      {time.time() - t_llm:.3f}s")
 
     content = response.choices[0].message.content
     content = clean_llm_json(content)
@@ -246,9 +289,23 @@ CRITICAL CONTENT REQUIREMENTS:
             # Re-serialize with the patched skills
             content = json.dumps(path_json)
 
-        new_path = LearningPath(user_id=current_user.id, path_data=content)
-        db.add(new_path)
+        # Upsert: another concurrent request may have already inserted a path
+        # for this user during the long RAG pipeline. Use merge instead of add
+        # so we always update rather than crash on the unique constraint.
+        existing_path = db.query(LearningPath).filter(
+            LearningPath.user_id == current_user.id
+        ).first()
+        if existing_path:
+            existing_path.path_data = content
+        else:
+            db.add(LearningPath(user_id=current_user.id, path_data=content))
         db.commit()
+
+        # Re-fetch the saved path to get the canonical version
+        saved_path = db.query(LearningPath).filter(
+            LearningPath.user_id == current_user.id
+        ).first()
+        path_json = json.loads(saved_path.path_data)
 
         # Initialize phase progress tracking
         num_phases = len(path_json.get("learning_path", []))
@@ -256,6 +313,7 @@ CRITICAL CONTENT REQUIREMENTS:
             from utils.test_generator import initialize_phase_progress
             initialize_phase_progress(current_user.id, num_phases, db)
 
+        print(f"[generate-path] TOTAL time:    {time.time() - t_total:.3f}s")
         return path_json
 
     except json.JSONDecodeError:
