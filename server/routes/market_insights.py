@@ -8,6 +8,7 @@ from config import ONET_CACHE
 from market.role_matcher import match_role_to_soc
 from market.skill_extractor import extract_top_skills, extract_skills_with_llm
 from market.insights_engine import generate_market_insights
+from market.live_skills import fetch_live_skills
 from datetime import datetime, timezone
 import json
 
@@ -42,17 +43,13 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
         # Cache miss — generate fresh data
         print(f"[Cache MISS] market-insights-test for user {current_user.id}")
 
-        # Try to match role to O*NET SOC code
-        match = match_role_to_soc(user_role, occupations_df)
-
-        if match:
-            soc_code, canonical_role = match
-            market_skills = extract_top_skills(soc_code, tech_skills_df)
-        else:
-            print(f"No O*NET match for '{user_role}', using LLM fallback")
-            soc_code = "99-9999.00"
-            canonical_role = user_role
-            market_skills = extract_skills_with_llm(user_role, top_n=15)
+        # Run O*NET match and Adzuna live fetch concurrently
+        import asyncio
+        onet_task = asyncio.to_thread(_get_onet_skills, user_role, occupations_df, tech_skills_df)
+        live_task  = fetch_live_skills(user_role, top_n=20)
+        (soc_code, canonical_role, market_skills), live_skills_data = await asyncio.gather(
+            onet_task, live_task
+        )
 
         # Ensure market_skills is not empty
         if not market_skills:
@@ -62,12 +59,23 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
                 "Data Analysis", "Project Management"
             ]
 
-        insights = generate_market_insights(user_skills, market_skills)
+        # Merge live skills into market_skills list.
+        # Live skills (from real job postings) take priority — prepend them,
+        # then append O*NET skills that aren't already represented.
+        live_skill_names = [s["skill"] for s in live_skills_data]
+        live_lower = {s.lower() for s in live_skill_names}
+        merged_market_skills = live_skill_names + [
+            s for s in market_skills if s.lower() not in live_lower
+        ]
+
+        insights = generate_market_insights(user_skills, merged_market_skills)
 
         gap_result = {
             "role": canonical_role,
             "soc_code": soc_code,
-            "insights": insights
+            "insights": insights,
+            "onet_skills": market_skills,          # raw O*NET skills (before merge)
+            "live_skills": live_skills_data,        # [{"skill": str, "listing_count": int}]
         }
 
         # Store in cache (profile_insights will be filled by /profile-insights)
@@ -97,3 +105,17 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to generate market insights: {str(e)}")
+
+
+def _get_onet_skills(user_role: str, occupations_df, tech_skills_df) -> tuple:
+    """Synchronous O*NET lookup — runs in a thread via asyncio.to_thread."""
+    match = match_role_to_soc(user_role, occupations_df)
+    if match:
+        soc_code, canonical_role = match
+        market_skills = extract_top_skills(soc_code, tech_skills_df)
+    else:
+        print(f"No O*NET match for '{user_role}', using LLM fallback")
+        soc_code = "99-9999.00"
+        canonical_role = user_role
+        market_skills = extract_skills_with_llm(user_role, top_n=15)
+    return soc_code, canonical_role, market_skills
