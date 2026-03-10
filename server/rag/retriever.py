@@ -1,46 +1,58 @@
 import os
-import requests
+import asyncio
+import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
 
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+
+SKILL_DOMAINS = [
+    "youtube.com", "wikipedia.org", "geeksforgeeks.org",
+    "tutorialspoint.com", "w3schools.com", "javatpoint.com",
+    "roadmap.sh", "medium.com", "dev.to", "freecodecamp.org",
+    "kaggle.com", "towardsdatascience.com",
+]
+
 def clean_llm_json(text: str) -> str:
     text = text.strip()
     if text.startswith("```"):
         text = text.split("```")[1]
-        # Strip language identifier (e.g. "json\n{...}" -> "{...}")
         text = text.split("\n", 1)[-1] if "\n" in text else text
     return text.strip()
 
-def retrieve_web_context(query: str) -> list[dict]:
+async def retrieve_web_context(query: str, max_results: int = 5) -> list[dict]:
+    """Fetch relevant web content for a query using Tavily search (async)."""
     url = "https://api.tavily.com/search"
-
     payload = {
         "api_key": TAVILY_API_KEY,
         "query": query,
         "search_depth": "basic",
         "include_answer": False,
-        "max_results": 5
+        "max_results": max_results,
+        "include_domains": SKILL_DOMAINS,
     }
 
-    response = requests.post(url, json=payload, timeout=15)
-    response.raise_for_status()
-    data = response.json()
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.post(url, json=payload)
+        response.raise_for_status()
+        data = response.json()
 
     results = []
     for item in data.get("results", []):
         results.append({
             "title": item.get("title", ""),
             "url": item.get("url", ""),
-            "content": item.get("content", "")
+            "content": item.get("content", ""),
         })
-
     return results
+
 if __name__ == "__main__":
-    test_query = "What is machine learning?"
-    contexts = retrieve_web_context(test_query)
-    for context in contexts:
-        print(f"Title: {context['title']}")
-        print(f"URL: {context['url']}")
-        print(f"Content: {context['content'][:200]}...\n")
+    async def _test():
+        contexts = await retrieve_web_context("data scientist roadmap")
+        for ctx in contexts:
+            print(f"Title: {ctx['title']}")
+            print(f"URL:   {ctx['url']}")
+            print(f"       {ctx['content'][:200]}\n")
+
+    asyncio.run(_test())

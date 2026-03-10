@@ -69,7 +69,7 @@ async def generate_learning_path(
 
     try:
         search_queries = generate_search_queries(profile)
-        web_context = batch_retrieve(search_queries, max_sources=RAG_MAX_SOURCES)
+        web_context = await batch_retrieve(search_queries, max_sources=RAG_MAX_SOURCES)
     except Exception as e:
         print("RAG FAILED:", e)
         web_context = ""
