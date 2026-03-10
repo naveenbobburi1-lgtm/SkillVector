@@ -80,8 +80,11 @@ def _vec_literal(embedding: list[float]) -> str:
     return "[" + ",".join(f"{v:.8f}" for v in embedding) + "]"
 
 
-def search_by_embedding(embedding: list[float]) -> list[dict] | None:
+def search_by_embedding(embedding: list[float], target_role: str = "") -> list[dict] | None:
     """Search rag_source_cache for sources stored under semantically similar queries.
+
+    Filters by target_role so that e.g. "Frontend Developer" queries never
+    return cached "Backend Developer" sources even if embeddings are similar.
 
     Returns a merged, deduplicated list of source dicts if >= MIN_SOURCES_FOR_HIT
     unique URLs are found within TTL, otherwise returns None (cache miss).
@@ -98,12 +101,14 @@ def search_by_embedding(embedding: list[float]) -> list[dict] | None:
             text(f"""
                 SELECT sources
                 FROM rag_source_cache
-                WHERE created_at >= :cutoff
+                WHERE target_role = :role
+                  AND created_at >= :cutoff
                   AND 1 - (query_embedding <=> '{vec_str}'::vector) >= :threshold
                 ORDER BY query_embedding <=> '{vec_str}'::vector
                 LIMIT 10
             """),
             {
+                "role": target_role,
                 "threshold": SIMILARITY_THRESHOLD,
                 "cutoff": cutoff,
             },
@@ -130,9 +135,10 @@ def search_by_embedding(embedding: list[float]) -> list[dict] | None:
         db.close()
 
 
-def search_by_embeddings_batch(embeddings: list[list[float]]) -> list[list[dict] | None]:
+def search_by_embeddings_batch(embeddings: list[list[float]], target_role: str = "") -> list[list[dict] | None]:
     """Search all N embeddings in ONE DB round-trip using UNION ALL.
 
+    Filters by target_role so different roles never share cached sources.
     Replaces N separate search_by_embedding() calls with a single query that
     invokes the HNSW index independently for each subquery. Cuts remote DB
     round-trips from N to 1, which is the dominant latency on a full cache hit.
@@ -153,7 +159,8 @@ def search_by_embeddings_batch(embeddings: list[list[float]]) -> list[list[dict]
             parts.append(
                 f"(SELECT {idx} AS idx, sources "
                 f"FROM rag_source_cache "
-                f"WHERE created_at >= :cutoff "
+                f"WHERE target_role = :role "
+                f"  AND created_at >= :cutoff "
                 f"  AND 1 - (query_embedding <=> '{vec}'::vector) >= :threshold "
                 f"ORDER BY query_embedding <=> '{vec}'::vector "
                 f"LIMIT 10)"
@@ -161,7 +168,7 @@ def search_by_embeddings_batch(embeddings: list[list[float]]) -> list[list[dict]
 
         rows = db.execute(
             text("\nUNION ALL\n".join(parts)),
-            {"cutoff": cutoff, "threshold": SIMILARITY_THRESHOLD},
+            {"role": target_role, "cutoff": cutoff, "threshold": SIMILARITY_THRESHOLD},
         ).fetchall()
 
         # Group by idx, dedup URLs within each group
@@ -186,8 +193,8 @@ def search_by_embeddings_batch(embeddings: list[list[float]]) -> list[list[dict]
         db.close()
 
 
-def store_entry(query: str, embedding: list[float], sources: list[dict]) -> None:
-    """Persist a query, its embedding, and the fetched sources to rag_source_cache.
+def store_entry(query: str, embedding: list[float], sources: list[dict], target_role: str = "") -> None:
+    """Persist a query, its embedding, role, and the fetched sources to rag_source_cache.
     Uses its own isolated DB session so a failure never affects the caller's session.
     """
     if not sources:
@@ -198,12 +205,13 @@ def store_entry(query: str, embedding: list[float], sources: list[dict]) -> None
         # vec_str is safe to interpolate: only digits, commas and brackets.
         db.execute(
             text(f"""
-                INSERT INTO rag_source_cache (query_text, query_embedding, sources, created_at)
-                VALUES (:query, '{vec_str}'::vector, :sources, NOW())
+                INSERT INTO rag_source_cache (query_text, query_embedding, sources, target_role, created_at)
+                VALUES (:query, '{vec_str}'::vector, :sources, :role, NOW())
             """),
             {
                 "query": query,
                 "sources": json.dumps(sources),
+                "role": target_role,
             },
         )
         db.commit()

@@ -4,19 +4,23 @@ from rag.retriever import retrieve_web_context
 from rag.vector_cache import get_embeddings_batch, search_by_embeddings_batch, store_entry
 
 # In-process cache for complete batch context strings.
-# Key: sorted tuple of query strings (role order doesn't matter).
-# On a full cache-hit scenario (same role -> same queries every time),
+# Key: (normalized_role, sorted_queries_tuple) — partitioned by role so
+# different roles never share cached context even with identical queries.
+# On a full cache-hit scenario (same role → same queries every time),
 # this skips ALL embedding and DB work after the first call: ~0ms.
-_context_cache: dict[tuple[str, ...], str] = {}
+_context_cache: dict[tuple, str] = {}
 _MAX_CONTEXT_CACHE = 128
 
 
-async def batch_retrieve(queries: list[str], max_sources: int = 20, language: str = "English") -> str:
+async def batch_retrieve(queries: list[str], max_sources: int = 20, language: str = "English", target_role: str = "") -> str:
     """
     Three-layer retrieval with per-step timing:
       L0 - In-memory context cache  (~0ms, skips everything)
       L1 - pgvector semantic cache   (1 DB round-trip via UNION ALL)
       L2 - Tavily live fetch         (only for cache misses)
+
+    All layers are partitioned by target_role so that e.g. "Frontend Developer"
+    queries never return cached "Backend Developer" sources.
 
     Language-specific queries (those containing the language name for
     non-English users) always bypass the vector cache and go straight to
@@ -25,8 +29,12 @@ async def batch_retrieve(queries: list[str], max_sources: int = 20, language: st
     """
     t0 = time.time()
 
+    # Normalize role for consistent cache keying
+    role_key = target_role.strip().lower()
+
     # L0: in-memory hit - skip ALL DB and API work
-    cache_key = tuple(sorted(queries))
+    # Include role in key so different roles never share cached context
+    cache_key = (role_key, tuple(sorted(queries)))
     if cache_key in _context_cache:
         print(f"[batch_retrieve] L0 in-memory HIT in {time.time() - t0:.3f}s")
         return _context_cache[cache_key]
@@ -48,7 +56,7 @@ async def batch_retrieve(queries: list[str], max_sources: int = 20, language: st
     # Step 2: ONE UNION ALL query for all N vector lookups (1 round-trip)
     t2 = time.time()
     results: list[list[dict] | None] = await asyncio.to_thread(
-        search_by_embeddings_batch, embeddings
+        search_by_embeddings_batch, embeddings, target_role
     )
     cache_hits = sum(1 for r in results if r is not None)
     miss_indices = [i for i, r in enumerate(results) if r is None]
@@ -88,7 +96,7 @@ async def batch_retrieve(queries: list[str], max_sources: int = 20, language: st
                 # (returning non-English sources) for English users same role.
                 if not is_lang_specific[i]:
                     store_tasks.append(
-                        asyncio.to_thread(store_entry, queries[i], embeddings[i], fresh)
+                        asyncio.to_thread(store_entry, queries[i], embeddings[i], fresh, target_role)
                     )
         if store_tasks:
             t4 = time.time()

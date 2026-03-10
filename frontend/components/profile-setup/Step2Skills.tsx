@@ -143,7 +143,7 @@ export default function Step2Skills({ data, updateData }: StepProps) {
 
             <div className="space-y-8">
                 {/* Core Skills - Glassmorphism Card */}
-                <div className="bg-surface-1/50 backdrop-blur-md border border-border rounded-2xl p-6 md:p-8 space-y-6 shadow-xl shadow-black/5">
+                <div className="relative z-10 bg-surface-1/50 backdrop-blur-md border border-border rounded-2xl p-6 md:p-8 space-y-6 shadow-xl shadow-black/5">
                     <div className="flex items-center gap-4 border-b border-border pb-4">
                         <div className="p-3 bg-primary/10 rounded-xl">
                             <span className="material-symbols-outlined text-primary text-2xl">psychology</span>
@@ -192,13 +192,15 @@ export default function Step2Skills({ data, updateData }: StepProps) {
                             {showSuggestions && suggestions.length > 0 && (
                                 <ul className="absolute z-50 left-0 right-16 md:right-[7.5rem] mt-1 max-h-56 overflow-y-auto bg-surface-1 border border-border rounded-xl shadow-2xl shadow-black/20 divide-y divide-border/50">
                                     {suggestions.map((s, idx) => (
-                                        <li
-                                            key={s}
-                                            onMouseDown={() => commitSkill(s)}
-                                            className={`px-4 py-3 cursor-pointer text-sm transition-colors flex items-center gap-2 ${idx === highlightIdx ? "bg-primary/10 text-primary" : "text-text-main hover:bg-surface-2"}`}
-                                        >
-                                            <span className="material-symbols-outlined text-base opacity-40">verified</span>
-                                            {s}
+                                        <li key={s}>
+                                            <button
+                                                type="button"
+                                                onClick={() => commitSkill(s)}
+                                                className={`w-full text-left px-4 py-3 cursor-pointer text-sm transition-colors flex items-center gap-2 ${idx === highlightIdx ? "bg-primary/10 text-primary" : "text-text-main hover:bg-surface-2"}`}
+                                            >
+                                                <span className="material-symbols-outlined text-base opacity-40">verified</span>
+                                                {s}
+                                            </button>
                                         </li>
                                     ))}
                                 </ul>

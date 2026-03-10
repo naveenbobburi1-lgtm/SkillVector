@@ -46,6 +46,16 @@ def init_db():
             ))
         except Exception:
             pass  # table doesn't exist yet — create_all() will create it correctly
+        # Add target_role column for role-scoped cache filtering.
+        # Safe to run repeatedly — no-op if column already exists.
+        try:
+            conn.execute(text(
+                "ALTER TABLE rag_source_cache "
+                "ADD COLUMN IF NOT EXISTS target_role VARCHAR NOT NULL DEFAULT ''"
+            ))
+        except Exception:
+            pass  # table doesn't exist yet — create_all() will create it correctly
+
         # HNSW index for fast cosine similarity search on the vector cache.
         # CREATE INDEX IF NOT EXISTS is idempotent — safe to run on every startup.
         try:
@@ -55,5 +65,14 @@ def init_db():
             ))
         except Exception:
             pass  # pgvector version may not support hnsw — falls back to seq scan
+
+        # B-tree index on target_role for efficient WHERE filtering before vector search.
+        try:
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS rag_source_cache_role_idx "
+                "ON rag_source_cache (target_role)"
+            ))
+        except Exception:
+            pass
         conn.commit()
     Base.metadata.create_all(bind=engine)

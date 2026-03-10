@@ -187,6 +187,7 @@ class QueryPlanCache(Base):
 class RagSourceCache(Base):
     """Vector cache of web sources fetched per search query.
     Uses pgvector cosine similarity to find semantically equivalent past queries.
+    Partitioned by target_role so "Frontend Developer" never matches "Backend Developer" cache.
     TTL: 30 days.
     """
     __tablename__ = "rag_source_cache"
@@ -195,5 +196,6 @@ class RagSourceCache(Base):
     query_text = Column(Text, nullable=False)
     query_embedding = Column(Vector(1024), nullable=False)  # mistral-embed dimension
     sources = Column(Text, nullable=False)  # JSON array of {title, url, content}
+    target_role = Column(String, nullable=False, index=True, server_default="")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
