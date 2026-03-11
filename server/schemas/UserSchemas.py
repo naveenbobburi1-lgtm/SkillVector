@@ -6,15 +6,12 @@ class UserCreate(BaseModel):
     password: str
 
 class UserProfileCreate(BaseModel):
-    age: int | None = None
-    phone: str | None = None
     education_level: str | None = None
     current_status: str | None = None
     current_role: str | None = None
     current_industry: str | None = None
     location: str | None = None
     skills: list[dict] | list[str] | None = None
-    certifications: list[dict] | None = None
     desired_role: str | None = None
     preferred_industries: list[str] | None = None
     expected_income: str | None = None

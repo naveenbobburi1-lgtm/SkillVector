@@ -7,32 +7,15 @@ interface StepProps {
     updateData: (data: Partial<UserProfileData>) => void;
 }
 
-export default function Step4Constraints({ data, updateData }: StepProps) {
-    const learningFormats = [
-        { name: "Video / Online", icon: "play_circle" },
-        { name: "Hands-on", icon: "precision_manufacturing" },
-        { name: "Interactive / Labs", icon: "science" },
-        { name: "Text / Reading", icon: "menu_book" }
-    ];
-
-    const toggleFormat = (format: string) => {
-        const current = data.learning_format || [];
-        if (current.includes(format)) {
-            updateData({ learning_format: current.filter((f) => f !== format) });
-        } else {
-            updateData({ learning_format: [...current, format] });
-        }
-    };
-
+export default function Step3Learning({ data, updateData }: StepProps) {
     return (
         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700 ease-out">
             <div className="text-center space-y-3">
-                <h1 className="text-4xl font-bold text-text-main tracking-tight">System Constraints</h1>
-                <p className="text-lg text-text-muted max-w-xl mx-auto">Calibrate the learning engine to fit your lifestyle parameters.</p>
+                <h1 className="text-4xl font-bold text-text-main tracking-tight">Learning Preferences & Launch</h1>
+                <p className="text-lg text-text-muted max-w-xl mx-auto">Calibrate the learning engine to fit your lifestyle, then launch to generate your path.</p>
             </div>
 
             <div className="space-y-8">
-
                 {/* Target Timeline */}
                 <div className="space-y-4">
                     <label className="text-sm font-bold text-text-dim uppercase tracking-wider ml-1">Target Timeline</label>
@@ -135,27 +118,6 @@ export default function Step4Constraints({ data, updateData }: StepProps) {
                         </div>
                     </div>
                 </div>
-
-                {/* Learning Format */}
-                <div className="space-y-4">
-                    <label className="text-sm font-bold text-text-dim uppercase tracking-wider ml-1">Content Format (Multiple)</label>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {learningFormats.map((fmt) => (
-                            <button
-                                key={fmt.name}
-                                onClick={() => toggleFormat(fmt.name)}
-                                className={`p-4 rounded-xl border text-sm font-bold transition-all flex flex-col items-center gap-3 ${data.learning_format?.includes(fmt.name)
-                                    ? "bg-primary text-white border-primary shadow-lg shadow-primary/20 transform -translate-y-1"
-                                    : "bg-surface-1 border-border text-text-muted hover:text-text-main hover:bg-surface-2"
-                                    }`}
-                            >
-                                <span className="material-symbols-outlined text-3xl">{fmt.icon}</span>
-                                <span>{fmt.name}</span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
             </div>
         </div>
     );

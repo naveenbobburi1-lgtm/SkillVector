@@ -243,7 +243,6 @@ async def admin_list_users(
                 "learning_pace": profile.learning_pace,
                 "hours_per_week": profile.hours_per_week,
                 "timeline": profile.timeline,
-                "expected_income": profile.expected_income,
             }
 
         result.append(user_data)
@@ -294,7 +293,6 @@ async def admin_get_user_detail(
         "profile": {
             "desired_role": profile.desired_role if profile else None,
             "skills": json.loads(profile.skills) if profile and profile.skills else [],
-            "certifications": json.loads(profile.certifications) if profile and profile.certifications else [],
             "education_level": profile.education_level if profile else None,
             "location": profile.location if profile else None,
             "current_status": profile.current_status if profile else None,
@@ -303,7 +301,6 @@ async def admin_get_user_detail(
             "learning_pace": profile.learning_pace if profile else None,
             "hours_per_week": profile.hours_per_week if profile else None,
             "timeline": profile.timeline if profile else None,
-            "expected_income": profile.expected_income if profile else None,
             "preferred_industries": json.loads(profile.preferred_industries) if profile and profile.preferred_industries else [],
         } if profile else None,
         "learning_path": learning_path_data,

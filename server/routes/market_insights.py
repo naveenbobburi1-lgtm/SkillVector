@@ -42,17 +42,11 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
         # Cache miss — generate fresh data
         print(f"[Cache MISS] market-insights-test for user {current_user.id}")
 
-        # Try to match role to O*NET SOC code
-        match = match_role_to_soc(user_role, occupations_df)
-
-        if match:
-            soc_code, canonical_role = match
-            market_skills = extract_top_skills(soc_code, tech_skills_df)
-        else:
-            print(f"No O*NET match for '{user_role}', using LLM fallback")
-            soc_code = "99-9999.00"
-            canonical_role = user_role
-            market_skills = extract_skills_with_llm(user_role, top_n=15)
+        # Run O*NET match
+        import asyncio
+        soc_code, canonical_role, market_skills = await asyncio.to_thread(
+            _get_onet_skills, user_role, occupations_df, tech_skills_df
+        )
 
         # Ensure market_skills is not empty
         if not market_skills:
@@ -67,7 +61,8 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
         gap_result = {
             "role": canonical_role,
             "soc_code": soc_code,
-            "insights": insights
+            "insights": insights,
+            "onet_skills": market_skills,
         }
 
         # Store in cache (profile_insights will be filled by /profile-insights)
@@ -97,3 +92,17 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to generate market insights: {str(e)}")
+
+
+def _get_onet_skills(user_role: str, occupations_df, tech_skills_df) -> tuple:
+    """Synchronous O*NET lookup — runs in a thread via asyncio.to_thread."""
+    match = match_role_to_soc(user_role, occupations_df)
+    if match:
+        soc_code, canonical_role = match
+        market_skills = extract_top_skills(soc_code, tech_skills_df)
+    else:
+        print(f"No O*NET match for '{user_role}', using LLM fallback")
+        soc_code = "99-9999.00"
+        canonical_role = user_role
+        market_skills = extract_skills_with_llm(user_role, top_n=15)
+    return soc_code, canonical_role, market_skills

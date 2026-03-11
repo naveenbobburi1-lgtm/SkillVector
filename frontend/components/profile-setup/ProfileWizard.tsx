@@ -4,9 +4,7 @@ import { useState, useEffect } from "react";
 import { UserProfileData } from "@/lib/types";
 import Step1Basic from "./Step1Basic";
 import Step2Skills from "./Step2Skills";
-import Step3Goals from "./Step3Goals";
-import Step4Constraints from "./Step4Constraints";
-import Step5Review from "./Step5Review";
+import Step3Learning from "./Step3Learning";
 import { useRouter } from "next/navigation";
 import { saveUserDetails, getUserProfile } from "@/lib/auth";
 
@@ -15,12 +13,9 @@ export default function ProfileWizard() {
     const [step, setStep] = useState(1);
     const [formData, setFormData] = useState<UserProfileData>({
         skills: [],
-        certifications: [],
         preferred_industries: [],
-        learning_format: [],
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [consentGiven, setConsentGiven] = useState(false);
 
     useEffect(() => {
         async function loadProfile() {
@@ -29,23 +24,17 @@ export default function ProfileWizard() {
                 if (profile && profile.is_complete) {
                     setFormData(prev => ({
                         ...prev,
-                        age: profile.age,
-                        phone: profile.phone,
                         education_level: profile.education_level,
                         current_status: profile.current_status,
                         current_role: profile.current_role,
                         current_industry: profile.current_industry,
                         location: profile.location,
                         skills: profile.skills || [],
-                        certifications: profile.certifications || [],
                         desired_role: profile.desired_role,
                         preferred_industries: profile.preferred_industries || [],
-                        expected_income: profile.expected_income,
-                        relocation: profile.relocation,
                         language: profile.language,
                         hours_per_week: profile.hours_per_week,
                         learning_pace: profile.learning_pace,
-                        learning_format: profile.learning_format || [],
                         budget_sensitivity: profile.budget_sensitivity,
                         timeline: profile.timeline,
                     }));
@@ -61,15 +50,10 @@ export default function ProfileWizard() {
         setFormData((prev) => ({ ...prev, ...data }));
     };
 
-    const nextStep = () => setStep((prev) => Math.min(prev + 1, 5));
+    const nextStep = () => setStep((prev) => Math.min(prev + 1, 3));
     const prevStep = () => setStep((prev) => Math.max(prev - 1, 1));
 
     const handleSubmit = async () => {
-        if (!consentGiven) {
-            alert("Please check the 'Data Consent' box to generate your path.");
-            return;
-        }
-
         setIsSubmitting(true);
         try {
             await saveUserDetails(formData);
@@ -82,19 +66,15 @@ export default function ProfileWizard() {
     };
 
     const stepLabel = [
-        "Basic Info",
-        "Skills",
-        "Goals",
-        "Constraints",
-        "Review"
+        "Career Profile",
+        "Competence Matrix",
+        "Learning Preferences & Launch"
     ];
 
     const stepIcon = [
         "person",
         "psychology",
-        "target",
-        "tune",
-        "check_circle"
+        "rocket_launch"
     ];
 
     return (
@@ -112,7 +92,7 @@ export default function ProfileWizard() {
 
                     {/* Step Indicator */}
                     <div className="flex items-center gap-1 md:gap-4">
-                        {[1, 2, 3, 4, 5].map((s, i) => (
+                        {[1, 2, 3].map((s, i) => (
                             <div key={s} className="flex items-center">
                                 <div className={`flex flex-col items-center gap-1`}>
                                     <div className={`
@@ -125,7 +105,7 @@ export default function ProfileWizard() {
                                         </span>
                                     </div>
                                 </div>
-                                {s < 5 && (
+                                {s < 3 && (
                                     <div className={`h-[2px] w-4 md:w-12 transition-colors duration-300 mx-1 md:mx-2 ${step > s ? "bg-primary" : "bg-surface-2"}`}></div>
                                 )}
                             </div>
@@ -141,17 +121,7 @@ export default function ProfileWizard() {
                 <div className="min-h-[400px]">
                     {step === 1 && <Step1Basic data={formData} updateData={updateData} />}
                     {step === 2 && <Step2Skills data={formData} updateData={updateData} />}
-                    {step === 3 && <Step3Goals data={formData} updateData={updateData} />}
-                    {step === 4 && <Step4Constraints data={formData} updateData={updateData} />}
-                    {step === 5 && (
-                        <Step5Review
-                            data={formData}
-                            onSubmit={handleSubmit}
-                            isSubmitting={isSubmitting}
-                            consentGiven={consentGiven}
-                            setConsentGiven={setConsentGiven}
-                        />
-                    )}
+                    {step === 3 && <Step3Learning data={formData} updateData={updateData} />}
                 </div>
             </main>
 
@@ -171,14 +141,14 @@ export default function ProfileWizard() {
                     </button>
 
                     <div className="text-sm font-medium text-text-muted hidden md:block">
-                        {step === 5 ? (
+                        {step === 3 ? (
                             <span className="text-primary font-bold">Ready to Launch?</span>
                         ) : (
-                            <>Step {step} of 5: <span className="text-text-main">{stepLabel[step - 1]}</span></>
+                            <>Step {step} of 3: <span className="text-text-main">{stepLabel[step - 1]}</span></>
                         )}
                     </div>
 
-                    {step < 5 ? (
+                    {step < 3 ? (
                         <button
                             onClick={nextStep}
                             className="flex items-center gap-2 px-8 py-3 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5"
@@ -190,10 +160,7 @@ export default function ProfileWizard() {
                         <button
                             onClick={handleSubmit}
                             disabled={isSubmitting}
-                            className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold transition-all shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${consentGiven
-                                ? "bg-primary hover:bg-primary-hover text-white shadow-primary/25 hover:shadow-primary/40"
-                                : "bg-surface-3 text-text-muted cursor-not-allowed"
-                                }`}
+                            className="flex items-center gap-2 px-8 py-3 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                         >
                             {isSubmitting ? "Generating..." : "Generate Path"}
                             {!isSubmitting && <span className="material-symbols-outlined">rocket_launch</span>}

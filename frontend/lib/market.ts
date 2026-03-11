@@ -8,6 +8,7 @@ export interface MarketGapAnalysis {
         missing_skills: string[];
         skill_coverage_percent: number;
     };
+    onet_skills: string[];
 }
 
 export interface MarketOutlook {

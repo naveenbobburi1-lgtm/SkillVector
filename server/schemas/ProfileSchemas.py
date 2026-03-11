@@ -7,6 +7,4 @@ class SkillAdd(BaseModel):
     proficiency: str = "beginner"  # beginner, intermediate, advanced
 
 
-class CertificationAdd(BaseModel):
-    name: str
-    issuer: str
+

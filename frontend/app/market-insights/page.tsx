@@ -188,6 +188,7 @@ export default function MarketInsightsPage() {
                                 ))}
                             </div>
                         </div>
+
                     </div>
 
                     {/* RIGHT COLUMN: Skill Gap Analysis (4 cols) */}
@@ -241,16 +242,34 @@ export default function MarketInsightsPage() {
                             </div>
                         )}
 
-                        {/* Core Requirements List */}
-                        <div className="glass-panel p-6 rounded-2xl">
-                            <h3 className="font-bold text-text-main mb-4 text-sm uppercase tracking-wider text-text-muted">Core Requirements</h3>
-                            <div className="flex flex-wrap gap-2">
-                                {gapAnalysis?.insights.market_required_skills.slice(0, 10).map((skill, i) => (
-                                    <span key={i} className="text-xs px-2 py-1 bg-surface-2 text-text-muted rounded-md border border-border">
-                                        {skill}
-                                    </span>
-                                ))}
-                            </div>
+                        {/* Core Requirements List — O*NET + Live split */}
+                        <div className="glass-panel p-6 rounded-2xl space-y-5">
+                            {/* O*NET skills */}
+                            {gapAnalysis?.onet_skills && gapAnalysis.onet_skills.length > 0 && (
+                                <div>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="material-symbols-outlined text-primary text-sm">dataset</span>
+                                        <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted">O*NET Occupational Data</h3>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {gapAnalysis.onet_skills.slice(0, 12).map((skill, i) => {
+                                            const missing = gapAnalysis.insights.missing_skills
+                                                .map(s => s.toLowerCase())
+                                                .includes(skill.toLowerCase());
+                                            return (
+                                                <span key={i} className={`text-xs px-2 py-1 rounded-md border ${
+                                                    missing
+                                                        ? "bg-error/10 text-error border-error/20"
+                                                        : "bg-surface-2 text-text-muted border-border"
+                                                }`}>
+                                                    {skill}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
                         </div>
 
                     </div>

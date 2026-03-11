@@ -69,24 +69,13 @@ async def user_profile(
         "username": current_user.username,
         "email": current_user.email,
         "is_complete": True,
-        "age": profile.age,
-        "phone": profile.phone,
-        "education_level": profile.education_level,
-        "current_status": profile.current_status,
-        "current_role": profile.current_role,
-        "current_industry": profile.current_industry,
-        "location": profile.location,
         "id": profile.id,
         "skills": [{"name": s, "proficiency": "beginner"} if isinstance(s, str) else s for s in (json.loads(profile.skills) if profile.skills else [])],
-        "certifications": json.loads(profile.certifications) if profile.certifications else [],
         "desired_role": profile.desired_role,
         "preferred_industries": json.loads(profile.preferred_industries) if profile.preferred_industries else [],
-        "expected_income": profile.expected_income,
-        "relocation": profile.relocation,
         "language": profile.language,
         "learning_pace": profile.learning_pace,
         "hours_per_week": profile.hours_per_week,
-        "learning_format": json.loads(profile.learning_format) if profile.learning_format else [],
         "budget_sensitivity": profile.budget_sensitivity,
         "timeline": profile.timeline
     }
@@ -211,28 +200,20 @@ async def create_user_details(
 
         # Serialize complex fields
         skills_str = json.dumps(details.skills) if details.skills else None
-        certifications_str = json.dumps(details.certifications) if details.certifications else None
         preferred_industries_str = json.dumps(details.preferred_industries) if details.preferred_industries else None
-        learning_format_str = json.dumps(details.learning_format) if details.learning_format else None
 
         profile_data = {
-            "age": details.age,
-            "phone": details.phone,
             "education_level": details.education_level,
             "current_status": details.current_status,
             "current_role": details.current_role,
             "current_industry": details.current_industry,
             "location": details.location,
             "skills": skills_str,
-            "certifications": certifications_str,
             "desired_role": details.desired_role,
             "preferred_industries": preferred_industries_str,
-            "expected_income": details.expected_income,
-            "relocation": details.relocation,
             "language": details.language,
             "learning_pace": details.learning_pace,
             "hours_per_week": details.hours_per_week,
-            "learning_format": learning_format_str,
             "budget_sensitivity": details.budget_sensitivity,
             "timeline": details.timeline
         }
@@ -401,35 +382,4 @@ async def add_skill(
         raise HTTPException(status_code=500, detail="Failed to add skill")
 
 
-@router.post("/add-certification")
-async def add_certification(
-    cert_data: profile_schemas.CertificationAdd,
-    db: Session = Depends(get_db),
-    current_user: UserDB = Depends(get_current_user)
-):
-    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
 
-    if not profile:
-        raise HTTPException(status_code=400, detail="Profile not found")
-
-    try:
-        current_certs = json.loads(profile.certifications) if profile.certifications else []
-
-        # Check for duplicate certification (title + issuer)
-        if any(c["title"].lower() == cert_data.name.lower() and c["issuer"].lower() == cert_data.issuer.lower() for c in current_certs):
-             return {"message": "Certification already exists", "certifications": current_certs}
-
-        new_cert = {"title": cert_data.name, "issuer": cert_data.issuer}
-        current_certs.append(new_cert)
-
-        profile.certifications = json.dumps(current_certs)
-        db.commit()
-
-        # Invalidate learning path
-        invalidate_learning_path(current_user.id, db)
-
-        return {"message": "Certification added", "certifications": current_certs}
-
-    except Exception as e:
-        print(f"Error adding certification: {e}")
-        raise HTTPException(status_code=500, detail="Failed to add certification")
