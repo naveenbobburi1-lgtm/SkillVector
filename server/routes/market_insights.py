@@ -8,7 +8,6 @@ from config import ONET_CACHE
 from market.role_matcher import match_role_to_soc
 from market.skill_extractor import extract_top_skills, extract_skills_with_llm
 from market.insights_engine import generate_market_insights
-from market.live_skills import fetch_live_skills
 from datetime import datetime, timezone
 import json
 
@@ -43,12 +42,10 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
         # Cache miss — generate fresh data
         print(f"[Cache MISS] market-insights-test for user {current_user.id}")
 
-        # Run O*NET match and Adzuna live fetch concurrently
+        # Run O*NET match
         import asyncio
-        onet_task = asyncio.to_thread(_get_onet_skills, user_role, occupations_df, tech_skills_df)
-        live_task  = fetch_live_skills(user_role, top_n=20)
-        (soc_code, canonical_role, market_skills), live_skills_data = await asyncio.gather(
-            onet_task, live_task
+        soc_code, canonical_role, market_skills = await asyncio.to_thread(
+            _get_onet_skills, user_role, occupations_df, tech_skills_df
         )
 
         # Ensure market_skills is not empty
@@ -59,23 +56,13 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
                 "Data Analysis", "Project Management"
             ]
 
-        # Merge live skills into market_skills list.
-        # Live skills (from real job postings) take priority — prepend them,
-        # then append O*NET skills that aren't already represented.
-        live_skill_names = [s["skill"] for s in live_skills_data]
-        live_lower = {s.lower() for s in live_skill_names}
-        merged_market_skills = live_skill_names + [
-            s for s in market_skills if s.lower() not in live_lower
-        ]
-
-        insights = generate_market_insights(user_skills, merged_market_skills)
+        insights = generate_market_insights(user_skills, market_skills)
 
         gap_result = {
             "role": canonical_role,
             "soc_code": soc_code,
             "insights": insights,
-            "onet_skills": market_skills,          # raw O*NET skills (before merge)
-            "live_skills": live_skills_data,        # [{"skill": str, "listing_count": int}]
+            "onet_skills": market_skills,
         }
 
         # Store in cache (profile_insights will be filled by /profile-insights)

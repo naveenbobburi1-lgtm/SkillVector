@@ -189,55 +189,6 @@ export default function MarketInsightsPage() {
                             </div>
                         </div>
 
-                        {/* Live Job Market Demand (Adzuna) */}
-                        {gapAnalysis?.live_skills && gapAnalysis.live_skills.length > 0 && (
-                            <div className="glass-panel p-8 rounded-2xl border-l-4 border-l-success">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <span className="material-symbols-outlined text-success">work</span>
-                                    <div>
-                                        <h3 className="text-lg font-bold text-text-main">Live Job Market Demand</h3>
-                                        <p className="text-xs text-text-muted mt-0.5">Skills ranked by frequency across real job listings · Adzuna API</p>
-                                    </div>
-                                </div>
-                                <div className="space-y-3">
-                                    {gapAnalysis.live_skills.map((item, i) => {
-                                        const maxCount = gapAnalysis.live_skills[0]?.listing_count || 1;
-                                        const pct = Math.round((item.listing_count / maxCount) * 100);
-                                        const isMissing = gapAnalysis.insights.missing_skills
-                                            .map(s => s.toLowerCase())
-                                            .includes(item.skill.toLowerCase());
-                                        return (
-                                            <div key={i} className="flex items-center gap-3">
-                                                <div className="w-28 shrink-0 flex items-center gap-1.5">
-                                                    <span className={`text-xs font-semibold ${
-                                                        isMissing ? "text-error" : "text-success"
-                                                    }`}>
-                                                        {item.skill}
-                                                    </span>
-                                                    {isMissing && (
-                                                        <span className="material-symbols-outlined text-error text-sm">close</span>
-                                                    )}
-                                                    {!isMissing && (
-                                                        <span className="material-symbols-outlined text-success text-sm">check</span>
-                                                    )}
-                                                </div>
-                                                <div className="flex-1 h-2 bg-surface-2 rounded-full overflow-hidden">
-                                                    <div
-                                                        className={`h-full rounded-full transition-all duration-700 ${
-                                                            isMissing ? "bg-error/60" : "bg-success/70"
-                                                        }`}
-                                                        style={{ width: `${pct}%` }}
-                                                    />
-                                                </div>
-                                                <span className="text-xs text-text-dim w-20 text-right shrink-0">
-                                                    {item.listing_count}/{maxCount} jobs
-                                                </span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
                     </div>
 
                     {/* RIGHT COLUMN: Skill Gap Analysis (4 cols) */}
@@ -319,33 +270,6 @@ export default function MarketInsightsPage() {
                                 </div>
                             )}
 
-                            {/* Live skills from Adzuna */}
-                            {gapAnalysis?.live_skills && gapAnalysis.live_skills.length > 0 && (
-                                <div>
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <span className="material-symbols-outlined text-success text-sm">wifi
-                                        </span>
-                                        <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted">Real-time Job Listings</h3>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {gapAnalysis.live_skills.map((item, i) => {
-                                            const missing = gapAnalysis.insights.missing_skills
-                                                .map(s => s.toLowerCase())
-                                                .includes(item.skill.toLowerCase());
-                                            return (
-                                                <span key={i} className={`text-xs px-2 py-1 rounded-md border flex items-center gap-1 ${
-                                                    missing
-                                                        ? "bg-error/10 text-error border-error/20"
-                                                        : "bg-success/10 text-success border-success/20"
-                                                }`}>
-                                                    {item.skill}
-                                                    <span className="opacity-60">{item.listing_count}</span>
-                                                </span>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
                         </div>
 
                     </div>

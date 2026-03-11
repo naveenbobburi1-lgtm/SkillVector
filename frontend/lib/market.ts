@@ -9,7 +9,6 @@ export interface MarketGapAnalysis {
         skill_coverage_percent: number;
     };
     onet_skills: string[];
-    live_skills: { skill: string; listing_count: number }[];
 }
 
 export interface MarketOutlook {
