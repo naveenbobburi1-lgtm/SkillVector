@@ -31,12 +31,9 @@ class UserProfile(Base):
     skills = Column(String, nullable=True) # Stored as JSON string
     desired_role = Column(String, nullable=True)
     preferred_industries = Column(String, nullable=True) # Stored as JSON string
-    expected_income = Column(String, nullable=True)
-    relocation = Column(Boolean, default=False)
     language = Column(String, nullable=True)
     learning_pace = Column(String, nullable=True)
     hours_per_week = Column(String, nullable=True)
-    learning_format = Column(String, nullable=True) # Stored as JSON string
     budget_sensitivity = Column(String, nullable=True)
     timeline = Column(String, nullable=True)
 
