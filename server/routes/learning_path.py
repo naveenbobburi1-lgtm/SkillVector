@@ -97,7 +97,6 @@ async def generate_learning_path(
         else:
             skills_with_proficiency.append(f"{s} (beginner)")
     industries = json.loads(profile.preferred_industries) if profile.preferred_industries else []
-    learning_formats = json.loads(profile.learning_format) if profile.learning_format else []
     instruction_language = profile.language or "English"
 
     # ==================================================
@@ -151,12 +150,10 @@ You are an AI system that generates structured learning paths.
 CRITICAL INSTRUCTIONS:
 - SKILL PROFICIENCY CALIBRATION: Each of the user's existing skills has a proficiency level (beginner, intermediate, advanced). Use these levels to calibrate the learning path depth per skill — skip fundamentals for advanced skills, provide deeper coverage for beginner skills, and bridge gaps for intermediate skills. Do NOT re-teach topics the user is already advanced in. Instead, focus on applying those advanced skills in the target role context.
 - The generated path MUST fit exactly within the 'Target Timeline' specified by the user (e.g., if target is 3 months, total duration must be approx 3 months). Adjust the scope and depth of modules to fit this constraint.
-- EDUCATION CALIBRATION: Use the user's education level to set the starting depth of the path. High School → include all fundamentals, assume no prior domain knowledge, explain concepts from scratch. Diploma → assume basic technical awareness, skip absolute beginner material. Undergraduate → assume solid domain foundations, skip fundamentals entirely, begin at intermediate. Postgraduate/PhD → assume deep theoretical knowledge, focus on advanced specialization and application. The meta.level field must reflect this (Beginner / Intermediate / Advanced).
-- CAREER TRANSITION: If the user is currently employed or self-employed and their current role differs from the target role, this is a CAREER TRANSITION. Analyze the user's current role and industry to identify TRANSFERABLE SKILLS (e.g., project management, communication, domain knowledge, analytical thinking) that can accelerate the transition. Start the learning path by bridging from what they already know in their current role. Acknowledge their professional experience and leverage it — do NOT treat them as absolute beginners. In the first phase, explicitly connect their existing professional skills to the target role. For example, a Business Development Manager transitioning to DevOps already has stakeholder management, process optimization, and cross-team collaboration skills that map to DevOps culture and CI/CD pipeline management.
-- RESOURCE LANGUAGE: The user prefers learning resources in '{instruction_language}'. When selecting from SOURCES, prioritize courses, videos, articles, and tutorials that are in {instruction_language} or have {instruction_language} subtitles/dubbing available. If {instruction_language} resources are unavailable in SOURCES, fall back to English. All learning path structure text (phase names, why_this_phase, topics, objectives, tasks, project descriptions) must stay in English.
-- CONTENT FORMAT: The user prefers these learning formats: {', '.join(learning_formats) if learning_formats else 'Any'}. Prioritize resources that match — if 'Video / Online' is preferred, favor video courses and YouTube playlists; if 'Text / Reading', favor articles and books; if 'Hands-on', favor interactive platforms and project-based resources; if 'Interactive / Labs', favor coding playgrounds, sandbox environments, and lab-based tutorials.
+- EDUCATIONAL CALIBRATION: Use the user's education level to set the starting depth of the path.
+- CAREER TRANSITION: If the user is currently employed or self-employed and their current role differs from the target role, this is a CAREER TRANSITION.
+- RESOURCE LANGUAGE: The user prefers learning resources in '{instruction_language}'. When selecting from SOURCES, prioritize courses, videos, articles, and tutorials that are in {instruction_language} or have {instruction_language} subtitles/dubbing available. If {instruction_language} resources are unavailable in SOURCES, fall back to English.
 - INDUSTRY CONTEXT: The user is targeting the {', '.join(industries) if industries else 'general'} industry/industries. Tailor examples, projects, and use cases to these industries wherever relevant.
-- INCOME TARGET: The user targets {profile.expected_income or 'unspecified'} annual income. Recommend resources and career milestones appropriate for that salary bracket.
 
 IMPORTANT INSTRUCTIONS (STRICT):
 - Use ONLY the resources provided in the SOURCES section.
@@ -188,11 +185,8 @@ USER DETAILS:
 - Location: {profile.location}
 - Existing Skills (with proficiency): {', '.join(skills_with_proficiency) if skills_with_proficiency else 'None'}
 - Preferred Industries: {', '.join(industries) if industries else 'Not specified'}
-- Expected Income: {profile.expected_income}
-- Willing to Relocate: {profile.relocation}
 - Learning Pace: {profile.learning_pace}
 - Hours per Week: {profile.hours_per_week}
-- Content Format Preference: {', '.join(learning_formats) if learning_formats else 'Not specified'}
 - Instruction Language: {instruction_language}
 - Budget Sensitivity: {profile.budget_sensitivity}
 - Target Timeline: {profile.timeline}
@@ -249,10 +243,10 @@ CRITICAL CONTENT REQUIREMENTS:
 2. "topics": 5–8 detailed sub-topics per phase.
 3. "skills": Technologies/tools the user will learn in this phase. If MANDATORY SKILLS DISTRIBUTION was provided above, use those EXACT names (copy-paste). Distribute ALL mandatory skills across phases so that completing the entire path covers every one. You may add extra skills too.
 4. "weekly_breakdown": Break down each phase into weekly focused goals (duration_weeks number of weeks). Each week should have specific learning objectives and practice tasks.
-5. "resources": EXACTLY 6-8 per phase. Match the user's preferred content format ({', '.join(learning_formats) if learning_formats else 'any format'}):
-   - 2-3 Courses (Coursera / Udemy / edX / YouTube) — prioritize if user prefers Video / Online
-   - 2-3 Articles or Blogs — prioritize if user prefers Text / Reading
-   - 1-2 Books — include if user prefers Text / Reading
+5. "resources": EXACTLY 6-8 per phase.
+   - 2-3 Courses (Coursera / Udemy / edX / YouTube)
+   - 2-3 Articles or Blogs
+   - 1-2 Books
 6. "projects": MINIMUM 3-5 hands-on projects per phase with varying difficulty levels (Easy/Medium/Hard). Tie projects to the user's target industries: {', '.join(industries) if industries else 'general domain'}.
 """
 

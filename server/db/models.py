@@ -23,15 +23,12 @@ class UserProfile(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, unique=True, index=True, nullable=False)
-    age = Column(Integer, nullable=True)
-    phone = Column(String, nullable=True)
     education_level = Column(String, nullable=True)
     current_status = Column(String, nullable=True)
     current_role = Column(String, nullable=True)
     current_industry = Column(String, nullable=True)
     location = Column(String, nullable=True)
     skills = Column(String, nullable=True) # Stored as JSON string
-    certifications = Column(String, nullable=True) # Stored as JSON string
     desired_role = Column(String, nullable=True)
     preferred_industries = Column(String, nullable=True) # Stored as JSON string
     expected_income = Column(String, nullable=True)

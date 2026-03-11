@@ -5,21 +5,15 @@ import { MarketGapAnalysis, MarketOutlook } from "./market";
 export interface UserProfileForReport {
     username?: string;
     email?: string;
-    age?: number;
-    phone?: string;
     education_level?: string;
     current_status?: string;
     location?: string;
     skills?: (string | { name: string; proficiency?: string })[];
-    certifications?: { title: string; issuer: string }[];
     desired_role?: string;
     preferred_industries?: string[];
-    expected_income?: string;
-    relocation?: boolean;
     language?: string;
     learning_pace?: string;
     hours_per_week?: string;
-    learning_format?: string[];
     budget_sensitivity?: string;
     timeline?: string;
 }
@@ -203,14 +197,11 @@ export function exportMarketInsightsReport(
 
         if (userProfile.username) col1.push(["Name", userProfile.username]);
         if (userProfile.email) col1.push(["Email", userProfile.email]);
-        if (userProfile.age) col1.push(["Age", String(userProfile.age)]);
-        if (userProfile.phone) col1.push(["Phone", userProfile.phone]);
         if (userProfile.education_level) col1.push(["Education", userProfile.education_level]);
 
         if (userProfile.current_status) col2.push(["Current Status", userProfile.current_status]);
         if (userProfile.location) col2.push(["Location", userProfile.location]);
         if (userProfile.desired_role) col2.push(["Desired Role", userProfile.desired_role]);
-        if (userProfile.expected_income) col2.push(["Expected Income", userProfile.expected_income]);
         if (userProfile.language) col2.push(["Language", userProfile.language]);
 
         // Draw both columns as one table
@@ -255,8 +246,6 @@ export function exportMarketInsightsReport(
         if (userProfile.hours_per_week) prefParts.push(`${userProfile.hours_per_week} hrs/week`);
         if (userProfile.timeline) prefParts.push(`Timeline: ${userProfile.timeline}`);
         if (userProfile.budget_sensitivity) prefParts.push(`Budget: ${userProfile.budget_sensitivity}`);
-        if (userProfile.learning_format?.length) prefParts.push(`Format: ${userProfile.learning_format.join(", ")}`);
-        if (userProfile.relocation !== undefined) prefParts.push(`Open to relocation: ${userProfile.relocation ? "Yes" : "No"}`);
 
         if (prefParts.length) {
             y = ensureSpace(doc, y, 20);
@@ -290,31 +279,6 @@ export function exportMarketInsightsReport(
                 }
             }
             y += 14;
-        }
-
-        // Certifications
-        if (userProfile.certifications?.length) {
-            y = ensureSpace(doc, y, 30);
-            doc.setFontSize(10);
-            doc.setFont("helvetica", "bold");
-            doc.setTextColor(...COLORS.dark);
-            doc.text("Certifications", margin, y + 4);
-            y += 8;
-
-            autoTable(doc, {
-                startY: y,
-                head: [["#", "Certification", "Issuer"]],
-                body: userProfile.certifications.map((c, i) => [
-                    String(i + 1),
-                    c.title,
-                    c.issuer,
-                ]),
-                theme: "striped",
-                headStyles: { fillColor: COLORS.success, fontSize: 8 },
-                styles: { fontSize: 9 },
-                margin: { left: margin, right: margin },
-            });
-            y = (doc as any).lastAutoTable.finalY + 8;
         }
 
         // User Skills

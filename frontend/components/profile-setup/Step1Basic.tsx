@@ -1,6 +1,8 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import { UserProfileData } from "@/lib/types";
+import { API_BASE_URL } from "@/lib/auth";
 
 interface Step1Props {
     data: UserProfileData;
@@ -8,31 +10,186 @@ interface Step1Props {
 }
 
 export default function Step1Basic({ data, updateData }: Step1Props) {
+    const [roleInput, setRoleInput] = useState(data.desired_role || "");
+    const [roleSuggestions, setRoleSuggestions] = useState<string[]>([]);
+    const [showRoleSuggestions, setShowRoleSuggestions] = useState(false);
+    const [roleHighlightIdx, setRoleHighlightIdx] = useState(-1);
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const roleWrapperRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        setRoleInput(data.desired_role || "");
+    }, [data.desired_role]);
+
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (roleWrapperRef.current && !roleWrapperRef.current.contains(e.target as Node)) {
+                setShowRoleSuggestions(false);
+            }
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
+
+    useEffect(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        const trimmed = roleInput.trim();
+        if (trimmed.length < 2) {
+            setRoleSuggestions([]);
+            setShowRoleSuggestions(false);
+            return;
+        }
+        debounceRef.current = setTimeout(async () => {
+            try {
+                const res = await fetch(
+                    `${API_BASE_URL}/suggestions/roles?q=${encodeURIComponent(trimmed)}`
+                );
+                if (res.ok) {
+                    const list: string[] = await res.json();
+                    setRoleSuggestions(list);
+                    setShowRoleSuggestions(list.length > 0);
+                    setRoleHighlightIdx(-1);
+                }
+            } catch {
+                // Ignore
+            }
+        }, 250);
+        return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    }, [roleInput]);
+
+    const selectRole = (role: string) => {
+        setRoleInput(role);
+        updateData({ desired_role: role });
+        setShowRoleSuggestions(false);
+        setRoleSuggestions([]);
+    };
+
+    const handleRoleKeyDown = (e: React.KeyboardEvent) => {
+        if (!showRoleSuggestions || roleSuggestions.length === 0) return;
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setRoleHighlightIdx((prev) => (prev + 1) % roleSuggestions.length);
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setRoleHighlightIdx((prev) => (prev <= 0 ? roleSuggestions.length - 1 : prev - 1));
+        } else if (e.key === "Enter") {
+            e.preventDefault();
+            if (roleHighlightIdx >= 0 && roleHighlightIdx < roleSuggestions.length) {
+                selectRole(roleSuggestions[roleHighlightIdx]);
+            }
+        } else if (e.key === "Escape") {
+            setShowRoleSuggestions(false);
+        }
+    };
+
+    const industries = [
+        { name: "IT & ITES", icon: "computer" },
+        { name: "Healthcare", icon: "medical_services" },
+        { name: "Manufacturing", icon: "precision_manufacturing" },
+        { name: "Retail & Logistics", icon: "shopping_cart" },
+        { name: "Construction", icon: "construction" },
+        { name: "Tourism", icon: "flight" },
+        { name: "Agriculture", icon: "agriculture" },
+        { name: "Automotive", icon: "directions_car" }
+    ];
+
+    const toggleIndustry = (industry: string) => {
+        const current = data.preferred_industries || [];
+        if (current.includes(industry)) {
+            updateData({ preferred_industries: current.filter((i) => i !== industry) });
+        } else {
+            if (current.length < 3) {
+                updateData({ preferred_industries: [...current, industry] });
+            }
+        }
+    };
+
     return (
         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700 ease-out">
             <div className="text-center space-y-3">
-                <h1 className="text-4xl font-bold text-text-main tracking-tight">Identity Calibration</h1>
-                <p className="text-lg text-text-muted max-w-xl mx-auto">Initialize your digital twin. The more precise the inputs, the sharper the learning vector.</p>
+                <h1 className="text-4xl font-bold text-text-main tracking-tight">Career Profile</h1>
+                <p className="text-lg text-text-muted max-w-xl mx-auto">Initialize your digital twin. Establish your current context and your target North Star.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-
-                {/* Left Column: Form Fields */}
-                <div className="space-y-6">
-                    <div className="space-y-3">
-                        <label className="text-sm font-semibold text-text-dim uppercase tracking-wider ml-1">Age</label>
-                        <div className="relative group">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-text-muted group-focus-within:text-primary transition-colors">calendar_today</span>
-                            <input
-                                type="number"
-                                value={data.age || ""}
-                                onChange={(e) => updateData({ age: parseInt(e.target.value) || undefined })}
-                                className="w-full bg-surface-1 border border-border rounded-xl pl-12 pr-4 py-4 text-text-main focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all placeholder:text-text-muted/30 shadow-sm"
-                                placeholder="Years"
-                            />
-                        </div>
+            {/* Target Role & Industries (The "North Star" goals from former Step 3) */}
+            <div className="space-y-8">
+                {/* Job Role - Hero Input */}
+                <div className="bg-gradient-to-br from-surface-1 to-surface-2 border border-border p-8 rounded-3xl shadow-xl relative overflow-visible group focus-within:ring-2 focus-within:ring-primary/50 transition-all">
+                    <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none group-focus-within:opacity-20 transition-opacity">
+                        <span className="material-symbols-outlined text-[100px] text-primary">target</span>
                     </div>
 
+                    <div className="relative z-10 space-y-4">
+                        <label className="text-sm font-bold text-text-dim uppercase tracking-wider flex items-center gap-2">
+                            Desired Job Role <span className="text-error">*</span>
+                        </label>
+                        <div className="relative" ref={roleWrapperRef}>
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 material-symbols-outlined text-4xl text-text-muted group-focus-within:text-primary transition-colors">search</span>
+                            <input
+                                type="text"
+                                value={roleInput}
+                                onChange={(e) => {
+                                    setRoleInput(e.target.value);
+                                    updateData({ desired_role: e.target.value });
+                                }}
+                                onKeyDown={handleRoleKeyDown}
+                                onFocus={() => { if (roleSuggestions.length > 0) setShowRoleSuggestions(true); }}
+                                className="w-full bg-transparent border-b-2 border-border py-4 pl-12 text-3xl font-bold text-text-main focus:border-primary outline-none transition-all placeholder:text-text-muted/20"
+                                placeholder="e.g. Data Scientist"
+                                autoComplete="off"
+                            />
+
+                            {/* Role suggestions dropdown */}
+                            {showRoleSuggestions && roleSuggestions.length > 0 && (
+                                <ul className="absolute z-50 left-0 right-0 mt-1 max-h-64 overflow-y-auto bg-surface-1 border border-border rounded-xl shadow-2xl shadow-black/20 divide-y divide-border/50">
+                                    {roleSuggestions.map((role, idx) => (
+                                        <li
+                                            key={role}
+                                            onMouseDown={() => selectRole(role)}
+                                            className={`px-5 py-3.5 cursor-pointer transition-colors flex items-center gap-3 ${idx === roleHighlightIdx ? "bg-primary/10 text-primary" : "text-text-main hover:bg-surface-2"}`}
+                                        >
+                                            <span className="material-symbols-outlined text-lg opacity-40">work</span>
+                                            <span className="font-medium">{role}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                        <p className="text-sm text-text-muted pl-12">Start typing to see matching roles, or enter your own.</p>
+                    </div>
+                </div>
+
+                {/* Industries - Grid Selection */}
+                <div className="space-y-4">
+                    <label className="text-sm font-bold text-text-dim uppercase tracking-wider ml-1">Desired Industries (Max 3)</label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {industries.map((ind) => {
+                            const isSelected = data.preferred_industries?.includes(ind.name);
+                            return (
+                                <button
+                                    key={ind.name}
+                                    onClick={() => toggleIndustry(ind.name)}
+                                    className={`relative p-3 h-24 rounded-2xl border flex flex-col items-center justify-center gap-2 transition-all duration-300 ${isSelected
+                                            ? "bg-primary text-white border-primary shadow-[0_8px_20px_-6px_rgba(var(--primary-rgb),0.5)] transform -translate-y-1"
+                                            : "bg-surface-1 text-text-muted border-border hover:border-primary/50 hover:text-text-main hover:bg-surface-2"
+                                        }`}
+                                >
+                                    <span className={`material-symbols-outlined text-2xl ${isSelected ? "text-white" : ""}`}>{ind.icon}</span>
+                                    <span className="text-xs font-semibold text-center leading-tight">{ind.name}</span>
+                                    {isSelected && <div className="absolute top-2 right-2 h-1.5 w-1.5 bg-white rounded-full"></div>}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            <hr className="border-border" />
+
+            {/* Current Context (Former Step 1) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Left Column: Location & Education */}
+                <div className="space-y-6">
                     <div className="space-y-3">
                         <label className="text-sm font-semibold text-text-dim uppercase tracking-wider ml-1">Current Location</label>
                         <div className="relative group">
@@ -48,16 +205,20 @@ export default function Step1Basic({ data, updateData }: Step1Props) {
                     </div>
 
                     <div className="space-y-3">
-                        <label className="text-sm font-semibold text-text-dim uppercase tracking-wider ml-1">Phone (Optional)</label>
-                        <div className="relative group">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-text-muted group-focus-within:text-primary transition-colors">call</span>
-                            <input
-                                type="tel"
-                                value={data.phone || ""}
-                                onChange={(e) => updateData({ phone: e.target.value })}
-                                className="w-full bg-surface-1 border border-border rounded-xl pl-12 pr-4 py-4 text-text-main focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all placeholder:text-text-muted/30 shadow-sm"
-                                placeholder="+1 234 567 890"
-                            />
+                        <label className="text-sm font-semibold text-text-dim uppercase tracking-wider ml-1">Highest Education Level</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            {["High School", "Diploma", "Undergraduate", "Postgraduate", "PhD"].map((edu) => (
+                                <button
+                                    key={edu}
+                                    onClick={() => updateData({ education_level: edu })}
+                                    className={`px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${data.education_level === edu
+                                            ? "bg-primary text-white border-primary shadow-md shadow-primary/20"
+                                            : "bg-surface-1 text-text-muted border-border hover:border-primary/50 hover:text-text-main hover:bg-surface-2"
+                                        }`}
+                                >
+                                    {edu}
+                                </button>
+                            ))}
                         </div>
                     </div>
                 </div>
@@ -78,15 +239,15 @@ export default function Step1Basic({ data, updateData }: Step1Props) {
                                         }
                                         updateData(update);
                                     }}
-                                    className={`relative p-4 rounded-xl border flex flex-col items-center justify-center gap-3 transition-all duration-300 group overflow-hidden ${data.current_status === status
+                                    className={`relative p-3 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all duration-300 group overflow-hidden ${data.current_status === status
                                             ? "bg-primary/10 border-primary shadow-[0_0_20px_rgba(var(--primary-rgb),0.15)] ring-1 ring-primary transform scale-[1.02]"
                                             : "bg-surface-1 border-border hover:bg-surface-2 hover:border-primary/50"
                                         }`}
                                 >
                                     {data.current_status === status && (
-                                        <div className="absolute top-2 right-2 h-2 w-2 rounded-full bg-primary animate-pulse"></div>
+                                        <div className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-primary animate-pulse"></div>
                                     )}
-                                    <span className={`material-symbols-outlined text-3xl transition-colors ${data.current_status === status ? "text-primary " : "text-text-muted group-hover:text-text-main"}`}>
+                                    <span className={`material-symbols-outlined text-2xl transition-colors ${data.current_status === status ? "text-primary " : "text-text-muted group-hover:text-text-main"}`}>
                                         {status === "Student" && "school"}
                                         {status === "Employed" && "work"}
                                         {status === "Unemployed" && "person_off"}
@@ -134,24 +295,6 @@ export default function Step1Basic({ data, updateData }: Step1Props) {
                 </div>
             </div>
 
-            {/* Bottom Row: Education */}
-            <div className="space-y-3 pt-4">
-                <label className="text-sm font-semibold text-text-dim uppercase tracking-wider ml-1">Highest Education Level</label>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    {["High School", "Diploma", "Undergraduate", "Postgraduate", "PhD"].map((edu) => (
-                        <button
-                            key={edu}
-                            onClick={() => updateData({ education_level: edu })}
-                            className={`px-4 py-3 rounded-xl border text-sm font-medium transition-all ${data.education_level === edu
-                                    ? "bg-primary text-white border-primary shadow-lg shadow-primary/20"
-                                    : "bg-surface-1 text-text-muted border-border hover:border-primary/50 hover:text-text-main hover:bg-surface-2"
-                                }`}
-                        >
-                            {edu}
-                        </button>
-                    ))}
-                </div>
-            </div>
         </div>
     );
 }
