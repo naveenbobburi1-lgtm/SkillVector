@@ -12,6 +12,10 @@ RAG_CONTEXT_CHAR_LIMIT = 12000
 LLM_MODEL = "llama-3.3-70b-versatile"
 LLM_TEMPERATURE = 0.2
 
+# Phase query generator (fast model for search query generation)
+PHASE_QUERY_MODEL = "llama-3.1-8b-instant"
+PHASE_RESOURCES_PER_TYPE = {"articles": 3, "books": 2, "videos": 3}
+
 # Test configuration
 TEST_PASSING_SCORE = 70  # percent
 TEST_QUESTIONS_COUNT = 15
@@ -19,3 +23,4 @@ TEST_QUESTIONS_COUNT = 15
 # Video anti-cheat
 VIDEO_HEARTBEAT_INTERVAL_SECONDS = 5
 VIDEO_MAX_SEEK_TOLERANCE_SECONDS = 15
+

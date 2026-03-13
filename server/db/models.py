@@ -181,7 +181,7 @@ class QueryPlanCache(Base):
 class RagSourceCache(Base):
     """Vector cache of web sources fetched per search query.
     Uses pgvector cosine similarity to find semantically equivalent past queries.
-    Partitioned by target_role so "Frontend Developer" never matches "Backend Developer" cache.
+    Partitioned by target_role and language so role+lang never share cached sources.
     TTL: 30 days.
     """
     __tablename__ = "rag_source_cache"
@@ -191,5 +191,23 @@ class RagSourceCache(Base):
     query_embedding = Column(Vector(1024), nullable=False)  # mistral-embed dimension
     sources = Column(Text, nullable=False)  # JSON array of {title, url, content}
     target_role = Column(String, nullable=False, index=True, server_default="")
+    language = Column(String, nullable=False, server_default="english")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ResourceCache(Base):
+    """Simple key-value cache for fetched learning resources (articles/videos).
+    Keyed by SHA-256 of '{source_type}:{query}:{language}'.
+    Enables cross-user caching: same queries share results.
+    TTL: 30 days.
+    """
+    __tablename__ = "resource_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cache_key = Column(String(64), unique=True, index=True, nullable=False)
+    query_text = Column(Text, nullable=False)
+    source_type = Column(String, nullable=False)   # "tavily" or "youtube"
+    language = Column(String, nullable=False, server_default="english")
+    resources = Column(Text, nullable=False)        # JSON array of {type, title, platform, link}
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

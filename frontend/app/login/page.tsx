@@ -2,8 +2,9 @@
 
 import { useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useGoogleLogin } from "@react-oauth/google";
-import { setToken, API_BASE_URL } from "@/lib/auth";
+import { setToken, API_BASE_URL, loginUser } from "@/lib/auth";
 
 function GoogleIcon() {
   return (
@@ -19,10 +20,35 @@ function GoogleIcon() {
 function LoginForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
-  const handleGoogleSuccess = async (tokenResponse: { access_token: string }) => {
+  // Email/Password login
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password.trim()) {
+      setError("Please enter both email and password");
+      return;
+    }
     setLoading(true);
+    setError("");
+    try {
+      const data = await loginUser(email, password);
+      setToken(data.access_token);
+      router.push("/profile");
+    } catch (err: any) {
+      setError(err.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Google OAuth login
+  const handleGoogleSuccess = async (tokenResponse: { access_token: string }) => {
+    setGoogleLoading(true);
     setError("");
     try {
       const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
@@ -46,7 +72,7 @@ function LoginForm() {
     } catch (err: any) {
       setError(err.message || "Google sign-in failed");
     } finally {
-      setLoading(false);
+      setGoogleLoading(false);
     }
   };
 
@@ -54,6 +80,8 @@ function LoginForm() {
     onSuccess: handleGoogleSuccess,
     onError: () => setError("Google sign-in was cancelled or failed"),
   });
+
+  const isLoading = loading || googleLoading;
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4 bg-background text-text-main relative overflow-hidden">
@@ -79,7 +107,7 @@ function LoginForm() {
             {[
               { icon: "psychology", color: "text-primary", title: "Intelligent Mapping", desc: "Our AI analyses your skills against millions of market data points." },
               { icon: "trending_up", color: "text-success", title: "Accelerated Growth", desc: "Navigate the fastest path to your goal with real-time adjustments." },
-              { icon: "verified_user", color: "text-violet-500", title: "Secure & Private", desc: "Sign in securely with your Google account. No passwords needed." },
+              { icon: "verified_user", color: "text-violet-500", title: "Secure & Private", desc: "Your data is encrypted and never shared with third parties." },
             ].map((f) => (
               <div key={f.title} className="p-4 rounded-xl bg-surface-1 border border-border/50 backdrop-blur-sm">
                 <div className="flex items-center gap-3 mb-1.5">
@@ -94,7 +122,7 @@ function LoginForm() {
           <div className="relative z-10 text-xs text-text-dim">© 2025 Skillvector Inc.</div>
         </div>
 
-        {/* Right Side: Google Auth */}
+        {/* Right Side: Login Form */}
         <div className="p-8 md:p-14 flex flex-col justify-center bg-surface-1">
           <div className="w-full max-w-sm mx-auto">
 
@@ -106,7 +134,7 @@ function LoginForm() {
               <span className="font-bold text-lg">Skillvector</span>
             </div>
 
-            <div className="mb-10">
+            <div className="mb-8">
               <h1 className="text-2xl md:text-3xl font-bold text-text-main mb-2">Welcome back</h1>
               <p className="text-text-muted text-sm">Sign in to access your personalized learning ecosystem.</p>
             </div>
@@ -118,13 +146,76 @@ function LoginForm() {
               </div>
             )}
 
+            {/* Email/Password Form */}
+            <form onSubmit={handleEmailLogin} className="space-y-4 mb-6">
+              <div>
+                <label htmlFor="login-email" className="block text-xs font-semibold text-text-dim uppercase tracking-wider mb-2">Email</label>
+                <input
+                  id="login-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  disabled={isLoading}
+                  className="w-full px-4 py-3 bg-surface-2 border border-border rounded-xl text-text-main placeholder:text-text-dim/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-all disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label htmlFor="login-password" className="block text-xs font-semibold text-text-dim uppercase tracking-wider mb-2">Password</label>
+                <div className="relative">
+                  <input
+                    id="login-password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    required
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 pr-12 bg-surface-2 border border-border rounded-xl text-text-main placeholder:text-text-dim/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-all disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-dim hover:text-text-muted transition-colors"
+                    tabIndex={-1}
+                  >
+                    <span className="material-symbols-outlined text-lg">
+                      {showPassword ? "visibility_off" : "visibility"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3.5 bg-primary hover:bg-primary/90 text-white font-semibold rounded-2xl transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-primary/20 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-lg">login</span>
+                    Sign In
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 mb-6">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-text-dim font-medium tracking-wide">OR</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+
             {/* Google Sign-In Button */}
             <button
               onClick={() => googleLogin()}
-              disabled={loading}
-              className="w-full bg-surface-2 hover:bg-surface-3 border border-border hover:border-border-highlight text-text-main font-semibold rounded-2xl flex items-center justify-center gap-3 transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed py-3.5 px-5"
+              disabled={isLoading}
+              className="w-full bg-surface-2 hover:bg-surface-3 border border-border hover:border-border-highlight text-text-main font-semibold rounded-2xl flex items-center justify-center gap-3 transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed py-3.5 px-5 mb-8"
             >
-              {loading ? (
+              {googleLoading ? (
                 <div className="w-5 h-5 border-2 border-text-dim/30 border-t-primary rounded-full animate-spin" />
               ) : (
                 <>
@@ -134,28 +225,15 @@ function LoginForm() {
               )}
             </button>
 
-            {/* Divider */}
-            <div className="flex items-center gap-3 my-7">
-              <div className="flex-1 h-px bg-border" />
-              <span className="text-xs text-text-dim font-medium tracking-wide">SECURE · PRIVATE · FAST</span>
-              <div className="flex-1 h-px bg-border" />
-            </div>
+            {/* Sign up link */}
+            <p className="text-center text-sm text-text-muted">
+              Don&apos;t have an account?{" "}
+              <Link href="/signup" className="text-primary font-semibold hover:underline">
+                Sign up
+              </Link>
+            </p>
 
-            {/* Trust indicators */}
-            <div className="grid grid-cols-3 gap-3 mb-8">
-              {[
-                { icon: "lock", label: "End-to-end secure" },
-                { icon: "privacy_tip", label: "No password stored" },
-                { icon: "bolt", label: "One-click access" },
-              ].map((item) => (
-                <div key={item.label} className="flex flex-col items-center gap-1.5 p-3 bg-surface-2 rounded-xl border border-border/50">
-                  <span className="material-symbols-outlined text-primary text-xl">{item.icon}</span>
-                  <span className="text-[10px] text-text-dim text-center leading-tight font-medium">{item.label}</span>
-                </div>
-              ))}
-            </div>
-
-            <p className="text-center text-xs text-text-dim leading-relaxed">
+            <p className="text-center text-xs text-text-dim leading-relaxed mt-6">
               By continuing, you agree to Skillvector&apos;s{" "}
               <span className="text-primary cursor-pointer hover:underline">Terms of Service</span>
               {" "}and{" "}

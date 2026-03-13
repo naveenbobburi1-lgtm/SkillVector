@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useGoogleLogin } from "@react-oauth/google";
-import { setToken, API_BASE_URL } from "@/lib/auth";
+import { setToken, API_BASE_URL, registerUser, loginUser } from "@/lib/auth";
 
 function GoogleIcon() {
   return (
@@ -19,10 +20,53 @@ function GoogleIcon() {
 export default function SignupPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
-  const handleGoogleSuccess = async (tokenResponse: { access_token: string }) => {
+  // Client-side validation
+  const validate = (): string | null => {
+    if (!username.trim()) return "Username is required";
+    if (username.trim().length < 3) return "Username must be at least 3 characters";
+    if (!email.trim()) return "Email is required";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Please enter a valid email address";
+    if (!password) return "Password is required";
+    if (password.length < 8) return "Password must be at least 8 characters";
+    if (password !== confirmPassword) return "Passwords do not match";
+    return null;
+  };
+
+  // Email/Password signup
+  const handleEmailSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     setLoading(true);
+    setError("");
+    try {
+      // Register the user
+      await registerUser(username.trim(), email.trim(), password);
+      // Auto-login after successful registration
+      const loginData = await loginUser(email.trim(), password);
+      setToken(loginData.access_token);
+      router.push("/profile/setup");
+    } catch (err: any) {
+      setError(err.message || "Registration failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Google OAuth signup
+  const handleGoogleSuccess = async (tokenResponse: { access_token: string }) => {
+    setGoogleLoading(true);
     setError("");
     try {
       const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
@@ -42,12 +86,11 @@ export default function SignupPage() {
       }
       const data = await res.json();
       setToken(data.access_token);
-      // Always send new sign-ups to profile setup
       router.push("/profile/setup");
     } catch (err: any) {
       setError(err.message || "Google sign-up failed");
     } finally {
-      setLoading(false);
+      setGoogleLoading(false);
     }
   };
 
@@ -55,6 +98,8 @@ export default function SignupPage() {
     onSuccess: handleGoogleSuccess,
     onError: () => setError("Google sign-up was cancelled or failed"),
   });
+
+  const isLoading = loading || googleLoading;
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4 bg-background text-text-main relative overflow-hidden">
@@ -95,7 +140,7 @@ export default function SignupPage() {
           <div className="relative z-10 text-xs text-text-dim">© 2025 Skillvector Inc.</div>
         </div>
 
-        {/* Right Side: Google Auth */}
+        {/* Right Side: Registration Form */}
         <div className="p-8 md:p-14 flex flex-col justify-center bg-surface-1">
           <div className="w-full max-w-sm mx-auto">
 
@@ -107,7 +152,7 @@ export default function SignupPage() {
               <span className="font-bold text-lg">Skillvector</span>
             </div>
 
-            <div className="mb-10">
+            <div className="mb-8">
               <h1 className="text-2xl md:text-3xl font-bold text-text-main mb-2">Create account</h1>
               <p className="text-text-muted text-sm">Begin your personalized AI career journey in seconds.</p>
             </div>
@@ -119,13 +164,110 @@ export default function SignupPage() {
               </div>
             )}
 
+            {/* Registration Form */}
+            <form onSubmit={handleEmailSignup} className="space-y-4 mb-6">
+              <div>
+                <label htmlFor="signup-username" className="block text-xs font-semibold text-text-dim uppercase tracking-wider mb-2">Username</label>
+                <input
+                  id="signup-username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="johndoe"
+                  required
+                  disabled={isLoading}
+                  className="w-full px-4 py-3 bg-surface-2 border border-border rounded-xl text-text-main placeholder:text-text-dim/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-all disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label htmlFor="signup-email" className="block text-xs font-semibold text-text-dim uppercase tracking-wider mb-2">Email</label>
+                <input
+                  id="signup-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  disabled={isLoading}
+                  className="w-full px-4 py-3 bg-surface-2 border border-border rounded-xl text-text-main placeholder:text-text-dim/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-all disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label htmlFor="signup-password" className="block text-xs font-semibold text-text-dim uppercase tracking-wider mb-2">Password</label>
+                <div className="relative">
+                  <input
+                    id="signup-password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Min. 8 characters"
+                    required
+                    minLength={8}
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 pr-12 bg-surface-2 border border-border rounded-xl text-text-main placeholder:text-text-dim/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-all disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-dim hover:text-text-muted transition-colors"
+                    tabIndex={-1}
+                  >
+                    <span className="material-symbols-outlined text-lg">
+                      {showPassword ? "visibility_off" : "visibility"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label htmlFor="signup-confirm" className="block text-xs font-semibold text-text-dim uppercase tracking-wider mb-2">Confirm Password</label>
+                <input
+                  id="signup-confirm"
+                  type={showPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Repeat your password"
+                  required
+                  minLength={8}
+                  disabled={isLoading}
+                  className="w-full px-4 py-3 bg-surface-2 border border-border rounded-xl text-text-main placeholder:text-text-dim/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-all disabled:opacity-50"
+                />
+                {password && confirmPassword && password !== confirmPassword && (
+                  <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-xs">error</span>
+                    Passwords do not match
+                  </p>
+                )}
+              </div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3.5 bg-primary hover:bg-primary/90 text-white font-semibold rounded-2xl transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-primary/20 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-lg">person_add</span>
+                    Create Account
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 mb-6">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-text-dim font-medium tracking-wide">OR</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+
             {/* Google Sign-Up Button */}
             <button
               onClick={() => googleLogin()}
-              disabled={loading}
-              className="w-full bg-surface-2 hover:bg-surface-3 border border-border hover:border-border-highlight text-text-main font-semibold rounded-2xl flex items-center justify-center gap-3 transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed py-3.5 px-5"
+              disabled={isLoading}
+              className="w-full bg-surface-2 hover:bg-surface-3 border border-border hover:border-border-highlight text-text-main font-semibold rounded-2xl flex items-center justify-center gap-3 transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed py-3.5 px-5 mb-8"
             >
-              {loading ? (
+              {googleLoading ? (
                 <div className="w-5 h-5 border-2 border-text-dim/30 border-t-primary rounded-full animate-spin" />
               ) : (
                 <>
@@ -135,31 +277,15 @@ export default function SignupPage() {
               )}
             </button>
 
-            {/* Divider */}
-            <div className="flex items-center gap-3 my-7">
-              <div className="flex-1 h-px bg-border" />
-              <span className="text-xs text-text-dim font-medium tracking-wide">NO PASSWORD REQUIRED</span>
-              <div className="flex-1 h-px bg-border" />
-            </div>
+            {/* Sign in link */}
+            <p className="text-center text-sm text-text-muted">
+              Already have an account?{" "}
+              <Link href="/login" className="text-primary font-semibold hover:underline">
+                Sign in
+              </Link>
+            </p>
 
-            {/* What happens next */}
-            <div className="space-y-3 mb-8">
-              {[
-                { step: "01", label: "Sign in with Google", desc: "Your existing Google account, zero new credentials." },
-                { step: "02", label: "Build your profile", desc: "Tell us your skills, goals and ambitions in 5 steps." },
-                { step: "03", label: "Get your AI roadmap", desc: "Receive a personalised career path backed by real market data." },
-              ].map((item) => (
-                <div key={item.step} className="flex items-start gap-3 p-3 bg-surface-2 rounded-xl border border-border/50">
-                  <span className="text-xs font-bold text-primary mt-0.5 w-6 flex-shrink-0">{item.step}</span>
-                  <div>
-                    <div className="text-xs font-semibold text-text-main">{item.label}</div>
-                    <div className="text-[11px] text-text-dim mt-0.5">{item.desc}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <p className="text-center text-xs text-text-dim leading-relaxed">
+            <p className="text-center text-xs text-text-dim leading-relaxed mt-6">
               By continuing, you agree to Skillvector&apos;s{" "}
               <span className="text-primary cursor-pointer hover:underline">Terms of Service</span>
               {" "}and{" "}
@@ -171,4 +297,3 @@ export default function SignupPage() {
     </div>
   );
 }
-

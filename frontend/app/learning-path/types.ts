@@ -1,5 +1,5 @@
 export interface Resource {
-    type: "Course" | "Article" | "Book";
+    type: "Course" | "Article" | "Book" | "Video";
     title: string;
     platform: string;
     link: string;

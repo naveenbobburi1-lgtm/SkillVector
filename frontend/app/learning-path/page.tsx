@@ -421,12 +421,18 @@ export default function LearningPathPage() {
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                               resource.type === 'Course' ? 'bg-blue-500/10 text-blue-500' :
                               resource.type === 'Article' ? 'bg-green-500/10 text-green-500' :
+                              resource.type === 'Playlist' ? 'bg-teal-500/10 text-teal-500' :
+                              resource.type === 'Video' ? 'bg-purple-500/10 text-purple-500' :
                               'bg-amber-500/10 text-amber-500'
                             }`}>{resource.type}</span>
-                            <span className="material-symbols-outlined text-sm text-text-muted group-hover:text-primary transition-colors">open_in_new</span>
+                            <span className="material-symbols-outlined text-sm text-text-muted group-hover:text-primary transition-colors">
+                              {resource.type === 'Playlist' ? 'playlist_play' : 'open_in_new'}
+                            </span>
                           </div>
                           <h4 className="text-sm font-bold text-text-main mb-1 line-clamp-2 group-hover:text-primary transition-colors">{resource.title}</h4>
-                          <p className="text-xs text-text-muted mt-auto pt-2 border-t border-border/50">{resource.platform}</p>
+                          <p className="text-xs text-text-muted mt-auto pt-2 border-t border-border/50">
+                            {resource.type === 'Playlist' ? `${resource.platform} · Playlist` : resource.platform}
+                          </p>
                         </a>
                       ))}
                     </div>

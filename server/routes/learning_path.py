@@ -4,14 +4,14 @@ from sqlalchemy import func, text
 from db.database import get_db
 from db.models import UserDB, UserProfile, LearningPath, PhaseProgress, TestAttempt, ActiveTest, MarketInsightsCache
 from auth import get_current_user
-from rag.retriever import clean_llm_json
-from rag.query_planner import generate_search_queries
-from rag.batch_retriever import batch_retrieve
+from rag.retriever import clean_llm_json, retrieve_videos, retrieve_articles
+from rag.phase_query_generator import generate_phase_queries
 from market.role_matcher import match_role_to_soc
 from market.skill_extractor import extract_top_skills, extract_top_knowledge, extract_top_activities
 from services.cache_service import invalidate_market_insights_cache
-from config import ONET_CACHE, RAG_MAX_SOURCES, RAG_CONTEXT_CHAR_LIMIT, LLM_MODEL, LLM_TEMPERATURE, TEST_PASSING_SCORE
+from config import ONET_CACHE, LLM_MODEL, LLM_TEMPERATURE, TEST_PASSING_SCORE
 from groq import Groq
+import asyncio
 import os
 import json
 import time
@@ -63,7 +63,6 @@ async def generate_learning_path(
     if not lock_acquired:
         # Another request is already generating this path — wait for it then
         # return the result once it commits (poll with a short back-off).
-        import asyncio
         for _ in range(60):               # max ~30s wait
             await asyncio.sleep(0.5)
             db.expire_all()               # force re-read from DB
@@ -100,26 +99,6 @@ async def generate_learning_path(
     instruction_language = profile.language or "English"
 
     # ==================================================
-    # RAG PIPELINE
-    # ==================================================
-
-    t_rag = time.time()
-    try:
-        search_queries = generate_search_queries(profile)
-        web_context = await batch_retrieve(
-            search_queries,
-            max_sources=RAG_MAX_SOURCES,
-            language=instruction_language,
-            target_role=profile.desired_role or "",
-        )
-    except Exception as e:
-        print("RAG FAILED:", e)
-        web_context = ""
-    print(f"[generate-path] RAG pipeline:  {time.time() - t_rag:.3f}s")
-
-    web_context = web_context[:RAG_CONTEXT_CHAR_LIMIT]
-
-    # ==================================================
     # O*NET ROLE CONTEXT
     # ==================================================
     t_onet = time.time()
@@ -142,7 +121,10 @@ async def generate_learning_path(
             role_context = "\n".join(parts)
     print(f"[generate-path] O*NET lookup:  {time.time() - t_onet:.3f}s")
 
-    # Prompt Construction
+    # ==================================================
+    # STAGE 1: Generate Learning Path Structure (no resources)
+    # ==================================================
+    t_stage1 = time.time()
 
     prompt = f"""
 You are an AI system that generates structured learning paths.
@@ -152,22 +134,11 @@ CRITICAL INSTRUCTIONS:
 - The generated path MUST fit exactly within the 'Target Timeline' specified by the user (e.g., if target is 3 months, total duration must be approx 3 months). Adjust the scope and depth of modules to fit this constraint.
 - EDUCATIONAL CALIBRATION: Use the user's education level to set the starting depth of the path.
 - CAREER TRANSITION: If the user is currently employed or self-employed and their current role differs from the target role, this is a CAREER TRANSITION.
-- RESOURCE LANGUAGE: The user prefers learning resources in '{instruction_language}'. When selecting from SOURCES, prioritize courses, videos, articles, and tutorials that are in {instruction_language} or have {instruction_language} subtitles/dubbing available. If {instruction_language} resources are unavailable in SOURCES, fall back to English.
 - INDUSTRY CONTEXT: The user is targeting the {', '.join(industries) if industries else 'general'} industry/industries. Tailor examples, projects, and use cases to these industries wherever relevant.
+- RESOURCE LANGUAGE: The user prefers learning resources in '{instruction_language}'.
 
-IMPORTANT INSTRUCTIONS (STRICT):
-- Use ONLY the resources provided in the SOURCES section.
-- Do NOT invent links, platforms, or book names.
-- If a resource is not present in SOURCES, do NOT include it.
-- YouTube videos or playlists from SOURCES are allowed for Courses.
-- NEVER repeat the same resource across different phases. Each phase MUST have unique resources that are not used in any other phase. If the same URL or title appears in Phase 1, it must NOT appear in Phase 2, Phase 3, etc. Distribute the available sources so each phase gets different, phase-appropriate resources.
+IMPORTANT: Do NOT include any resources in this pass. Leave the "resources" array EMPTY for every phase. Resources will be attached separately.
 
-SOURCES:
-{web_context}
-
-TASK:
-Generate a highly personalized, comprehensive learning path for the following user.
-Establish a clear logical progression.
 {f'''
 ROLE REQUIREMENTS (from O*NET occupational data — use this to calibrate which topics, skills, and knowledge areas the path must cover):
 {role_context}
@@ -219,14 +190,7 @@ OUTPUT RULES (STRICT):
           "practice_tasks": [string]
         }}
       ],
-      "resources": [
-        {{
-          "type": "Course" | "Article" | "Book" | "Video",
-          "title": string,
-          "platform": string,
-          "link": string
-        }}
-      ],
+      "resources": [],
       "projects": [
         {{
           "title": string,
@@ -243,83 +207,189 @@ CRITICAL CONTENT REQUIREMENTS:
 2. "topics": 5–8 detailed sub-topics per phase.
 3. "skills": Technologies/tools the user will learn in this phase. If MANDATORY SKILLS DISTRIBUTION was provided above, use those EXACT names (copy-paste). Distribute ALL mandatory skills across phases so that completing the entire path covers every one. You may add extra skills too.
 4. "weekly_breakdown": Break down each phase into weekly focused goals (duration_weeks number of weeks). Each week should have specific learning objectives and practice tasks.
-5. "resources": EXACTLY 6-8 per phase.
-   - 2-3 Courses (Coursera / Udemy / edX / YouTube)
-   - 2-3 Articles or Blogs
-   - 1-2 Books
+5. "resources": MUST be an empty array []. Resources will be populated automatically.
 6. "projects": MINIMUM 3-5 hands-on projects per phase with varying difficulty levels (Easy/Medium/Hard). Tie projects to the user's target industries: {', '.join(industries) if industries else 'general domain'}.
 """
 
-    t_llm = time.time()
     response = client.chat.completions.create(
         model=LLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=LLM_TEMPERATURE,
         response_format={"type": "json_object"}
     )
-    print(f"[generate-path] Groq LLM:      {time.time() - t_llm:.3f}s")
+    print(f"[generate-path] Stage 1 (path structure): {time.time() - t_stage1:.3f}s")
 
     content = response.choices[0].message.content
     content = clean_llm_json(content)
 
     try:
         path_json = json.loads(content)
-
-        # Post-process: ensure O*NET required skills are distributed across phases
-        if onet_required_skills and path_json.get("learning_path"):
-            phases = path_json["learning_path"]
-            # Collect all skills already present (lowercased for comparison)
-            all_phase_skills_lower = set()
-            for phase in phases:
-                for sk in phase.get("skills", []):
-                    all_phase_skills_lower.add(sk.lower().strip())
-
-            # Find which O*NET skills are missing
-            missing = [sk for sk in onet_required_skills if sk.lower().strip() not in all_phase_skills_lower]
-
-            if missing:
-                # Distribute missing skills evenly across phases
-                for i, sk in enumerate(missing):
-                    target_phase = phases[i % len(phases)]
-                    if "skills" not in target_phase:
-                        target_phase["skills"] = []
-                    target_phase["skills"].append(sk)
-
-            # Re-serialize with the patched skills
-            content = json.dumps(path_json)
-
-        # Upsert: another concurrent request may have already inserted a path
-        # for this user during the long RAG pipeline. Use merge instead of add
-        # so we always update rather than crash on the unique constraint.
-        existing_path = db.query(LearningPath).filter(
-            LearningPath.user_id == current_user.id
-        ).first()
-        if existing_path:
-            existing_path.path_data = content
-        else:
-            db.add(LearningPath(user_id=current_user.id, path_data=content))
-        db.commit()
-
-        # Re-fetch the saved path to get the canonical version
-        saved_path = db.query(LearningPath).filter(
-            LearningPath.user_id == current_user.id
-        ).first()
-        path_json = json.loads(saved_path.path_data)
-
-        # Initialize phase progress tracking
-        num_phases = len(path_json.get("learning_path", []))
-        if num_phases > 0:
-            from utils.test_generator import initialize_phase_progress
-            initialize_phase_progress(current_user.id, num_phases, db)
-
-        print(f"[generate-path] TOTAL time:    {time.time() - t_total:.3f}s")
-        return path_json
-
     except json.JSONDecodeError:
         return {
             "error": "Model returned invalid JSON",
             "raw_output": content
         }
+
+    # Post-process: ensure O*NET required skills are distributed across phases
+    if onet_required_skills and path_json.get("learning_path"):
+        phases = path_json["learning_path"]
+        all_phase_skills_lower = set()
+        for phase in phases:
+            for sk in phase.get("skills", []):
+                all_phase_skills_lower.add(sk.lower().strip())
+
+        missing = [sk for sk in onet_required_skills if sk.lower().strip() not in all_phase_skills_lower]
+        if missing:
+            for i, sk in enumerate(missing):
+                target_phase = phases[i % len(phases)]
+                if "skills" not in target_phase:
+                    target_phase["skills"] = []
+                target_phase["skills"].append(sk)
+
+    phases = path_json.get("learning_path", [])
+
+    # ==================================================
+    # STAGE 2: Generate per-phase search queries (fast model)
+    # ==================================================
+    t_stage2 = time.time()
+    phase_queries = await asyncio.to_thread(
+        generate_phase_queries, phases, instruction_language, profile.desired_role or ""
+    )
+    print(f"[generate-path] Stage 2 (query generation): {time.time() - t_stage2:.3f}s")
+
+    # ==================================================
+    # STAGE 3: Fetch resources per phase (fully parallel)
+    # Tavily: unlimited concurrency (handles it fine)
+    # YouTube: semaphore-limited to 5 concurrent calls
+    # Both use in-memory cache for repeat queries
+    # ==================================================
+    t_stage3 = time.time()
+    yt_semaphore = asyncio.Semaphore(5)
+
+    # In-memory resource cache: query_string → result list
+    # Shared across phases so identical queries don't re-fetch
+    if not hasattr(generate_learning_path, "_resource_cache"):
+        generate_learning_path._resource_cache = {}
+    rcache = generate_learning_path._resource_cache
+
+    async def _cached_articles(q: str) -> list[dict]:
+        key = f"tavily:{q}"
+        if key in rcache:
+            return rcache[key]
+        result = await retrieve_articles(q, max_results=2)
+        rcache[key] = result
+        return result
+
+    async def _cached_videos(q: str, lang: str) -> list[dict]:
+        key = f"yt:{q}:{lang}"
+        if key in rcache:
+            return rcache[key]
+        async with yt_semaphore:
+            result = await retrieve_videos(q, language=lang, max_results=2)
+        rcache[key] = result
+        return result
+
+    # Build ALL tasks across ALL phases at once
+    task_map: list[tuple[int, str, asyncio.Task]] = []  # (phase_idx, type, task)
+
+    for phase_idx in range(len(phases)):
+        queries = phase_queries.get(phase_idx, {})
+        for wq in queries.get("web_queries", []):
+            task_map.append((phase_idx, "web", asyncio.ensure_future(_cached_articles(wq))))
+        for yq in queries.get("youtube_queries", []):
+            task_map.append((phase_idx, "yt", asyncio.ensure_future(_cached_videos(yq, instruction_language))))
+
+    # Wait for ALL tasks across ALL phases
+    if task_map:
+        await asyncio.gather(*[t for _, _, t in task_map], return_exceptions=True)
+
+    # Collect results per phase
+    all_phase_resources: list[list[dict]] = [[] for _ in phases]
+    for phase_idx, task_type, task in task_map:
+        try:
+            result = task.result()
+            if result:
+                all_phase_resources[phase_idx].extend(result)
+        except Exception as e:
+            print(f"[Stage3] Phase {phase_idx} {task_type} error: {e}")
+
+    for pi in range(len(phases)):
+        resources = all_phase_resources[pi]
+        vid_count = len([r for r in resources if r.get("type") == "Video"])
+        print(f"[Stage3] Phase {pi}: {len(resources)} resources ({vid_count} videos)")
+
+    print(f"[generate-path] Stage 3 (resource fetching): {time.time() - t_stage3:.3f}s")
+
+    # ==================================================
+    # STAGE 4: Attach resources to phases (deduplicated)
+    # Interleave articles and videos to ensure both types appear
+    # ==================================================
+    t_stage4 = time.time()
+    seen_urls: set[str] = set()
+
+    for i, phase in enumerate(phases):
+        raw_resources = all_phase_resources[i] if i < len(all_phase_resources) else []
+
+        # Split by type and deduplicate separately
+        articles: list[dict] = []
+        videos: list[dict] = []
+
+        for r in raw_resources:
+            url = r.get("link", "")
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            if r.get("type") in ("Video", "Playlist"):
+                videos.append(r)
+            else:
+                articles.append(r)
+
+        # Interleave: take up to 5 articles/books + up to 5 videos/playlists
+        final: list[dict] = []
+        final.extend(articles[:5])
+        final.extend(videos[:5])
+        phase["resources"] = final
+
+        art_count = len([r for r in final if r.get("type") not in ("Video", "Playlist")])
+        vid_count = len([r for r in final if r.get("type") == "Video"])
+        pl_count = len([r for r in final if r.get("type") == "Playlist"])
+        print(f"[Stage4] Phase {i}: {len(final)} resources ({art_count} articles, {vid_count} videos, {pl_count} playlists)")
+
+    print(f"[generate-path] Stage 4 (resource attachment): {time.time() - t_stage4:.3f}s")
+
+    # Serialize final path
+    content = json.dumps(path_json)
+
+    # Upsert: another concurrent request may have already inserted a path
+    # for this user during the long pipeline. Use merge instead of add
+    # so we always update rather than crash on the unique constraint.
+    existing_path = db.query(LearningPath).filter(
+        LearningPath.user_id == current_user.id
+    ).first()
+    if existing_path:
+        existing_path.path_data = content
+    else:
+        db.add(LearningPath(user_id=current_user.id, path_data=content))
+    db.commit()
+
+    # Re-fetch the saved path to get the canonical version
+    saved_path = db.query(LearningPath).filter(
+        LearningPath.user_id == current_user.id
+    ).first()
+    path_json = json.loads(saved_path.path_data)
+
+    # Initialize phase progress tracking
+    num_phases = len(path_json.get("learning_path", []))
+    if num_phases > 0:
+        from utils.test_generator import initialize_phase_progress
+        initialize_phase_progress(current_user.id, num_phases, db)
+
+    total_resources = sum(len(p.get("resources", [])) for p in path_json.get("learning_path", []))
+    print(
+        f"[generate-path] TOTAL time: {time.time() - t_total:.3f}s | "
+        f"{len(phases)} phases, {total_resources} resources"
+    )
+    return path_json
 
 
 @router.get("/phase-progress")
