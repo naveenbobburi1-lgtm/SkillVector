@@ -1,4 +1,5 @@
 annotated-doc
+exa-py
 annotated-types
 anyio
 bcrypt

@@ -9,6 +9,7 @@ from rag.phase_query_generator import generate_phase_queries
 from market.role_matcher import match_role_to_soc
 from market.skill_extractor import extract_top_skills, extract_top_knowledge, extract_top_activities
 from services.cache_service import invalidate_market_insights_cache
+from services.exa_market_service import fetch_realtime_market_data
 from config import ONET_CACHE, LLM_MODEL, LLM_TEMPERATURE, TEST_PASSING_SCORE
 from groq import Groq
 import asyncio
@@ -99,7 +100,7 @@ async def generate_learning_path(
     instruction_language = profile.language or "English"
 
     # ==================================================
-    # O*NET ROLE CONTEXT
+    # O*NET + EXA (REAL-TIME) ROLE CONTEXT
     # ==================================================
     t_onet = time.time()
     role_context = ""
@@ -117,9 +118,18 @@ async def generate_learning_path(
             if activity_list:
                 parts.append("Core Work Activities: " + "; ".join(activity_list))
             if onet_required_skills:
-                parts.append("Required Technologies: " + ", ".join(onet_required_skills))
+                parts.append("Required Technologies (O*NET): " + ", ".join(onet_required_skills))
             role_context = "\n".join(parts)
-    print(f"[generate-path] O*NET lookup:  {time.time() - t_onet:.3f}s")
+
+    # Fetch Exa real-time training skills and merge with O*NET for learning path
+    exa_data = fetch_realtime_market_data(profile.desired_role or "")
+    exa_skills = exa_data.get("training_skills", []) or []
+    combined_required_skills = list(dict.fromkeys(exa_skills + onet_required_skills))  # Exa first, dedupe
+
+    if exa_skills:
+        role_context = (role_context + "\n" if role_context else "") + "Real-time Market Skills (Exa): " + ", ".join(exa_skills)
+
+    print(f"[generate-path] O*NET + Exa lookup:  {time.time() - t_onet:.3f}s")
 
     # ==================================================
     # STAGE 1: Generate Learning Path Structure (no resources)
@@ -144,9 +154,9 @@ ROLE REQUIREMENTS (from O*NET occupational data — use this to calibrate which 
 {role_context}
 ''' if role_context else ""}
 {f'''MANDATORY SKILLS DISTRIBUTION:
-The following is the official list of market-required technologies for this role. You MUST distribute ALL of these across the phases using their EXACT names in each phase's "skills" array. Every skill below must appear in at least one phase. You may also add other relevant skills, but these are required:
-{json.dumps(onet_required_skills)}
-''' if onet_required_skills else ""}
+The following is the combined list of market-required technologies (Real-time Exa + O*NET). You MUST distribute ALL of these across the phases using their EXACT names in each phase's "skills" array. Every skill below must appear in at least one phase. You may also add other relevant skills, but these are required:
+{json.dumps(combined_required_skills)}
+''' if combined_required_skills else ""}
 USER DETAILS:
 - Target Role: {profile.desired_role}
 - Current Education: {profile.education_level}

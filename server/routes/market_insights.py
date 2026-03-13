@@ -8,6 +8,7 @@ from config import ONET_CACHE
 from market.role_matcher import match_role_to_soc
 from market.skill_extractor import extract_top_skills, extract_skills_with_llm
 from market.insights_engine import generate_market_insights
+from services.exa_market_service import fetch_realtime_market_data
 from datetime import datetime, timezone
 import json
 
@@ -56,13 +57,19 @@ async def market_insights(db: Session = Depends(get_db), current_user: UserDB = 
                 "Data Analysis", "Project Management"
             ]
 
-        insights = generate_market_insights(user_skills, market_skills)
+        # Fetch Exa real-time skills and merge with O*NET for missing-skills calculation
+        exa_data = fetch_realtime_market_data(user_role)
+        exa_skills = exa_data.get("training_skills", []) or []
+        combined_skills = list(dict.fromkeys(exa_skills + market_skills))  # Exa first, dedupe
+
+        insights = generate_market_insights(user_skills, combined_skills)
 
         gap_result = {
             "role": canonical_role,
             "soc_code": soc_code,
             "insights": insights,
             "onet_skills": market_skills,
+            "exa_skills": exa_skills,
         }
 
         # Store in cache (profile_insights will be filled by /profile-insights)

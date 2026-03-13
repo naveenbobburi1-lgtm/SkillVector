@@ -11,6 +11,7 @@ from market.load_onet import load_onet_data
 from market.skill_extractor import extract_top_skills, extract_skills_with_llm
 import market.role_matcher as role_matcher
 import market.insights_engine as insights_engine
+from services.exa_market_service import fetch_realtime_market_data
 import json
 import re as _re
 
@@ -266,8 +267,11 @@ async def get_profile_insights(
 
         print(f"[Cache MISS] profile-insights for user {current_user.id}")
 
-        # Use analyze_role_outlook for LLM-powered market data
+        # Use analyze_role_outlook for static LLM-powered market data
         outlook = insights_engine.analyze_role_outlook(role)
+
+        # Fetch real-time market data via Exa API (web search + extraction)
+        realtime_data = fetch_realtime_market_data(role)
 
         # Transform analyze_role_outlook output to the frontend-expected format
         growth_score = outlook.get("growth", 75)
@@ -302,7 +306,9 @@ async def get_profile_insights(
             "role_growth": role_growth,
             "salary_insight": salary_insight,
             "market_outlook": outlook.get("summary", "Steady demand with growth opportunities."),
-            "hot_sectors": hot_sectors
+            "hot_sectors": hot_sectors,
+            "data_sources": {"static": True, "realtime": realtime_data.get("data_source") == "realtime"},
+            "realtime": realtime_data,
         }
 
         # Store in cache
@@ -335,7 +341,17 @@ async def get_profile_insights(
              "role_growth": "+8%",
              "salary_insight": "Market competitive",
              "market_outlook": "Steady demand with growth opportunities.",
-             "hot_sectors": ["Technology", "Finance", "Healthcare"]
+             "hot_sectors": ["Technology", "Finance", "Healthcare"],
+             "data_sources": {"static": True, "realtime": False},
+             "realtime": {
+                 "training_skills": [],
+                 "growth_rate": "N/A",
+                 "total_jobs": "N/A",
+                 "starting_salary": "N/A",
+                 "average_salary": "N/A",
+                 "max_salary": "N/A",
+                 "data_source": "static",
+             },
         }
 
 
