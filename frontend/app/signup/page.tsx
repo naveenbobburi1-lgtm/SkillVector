@@ -102,196 +102,198 @@ export default function SignupPage() {
   const isLoading = loading || googleLoading;
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-background text-text-main relative overflow-hidden">
-      {/* Background glows */}
-      <div className="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] bg-primary/10 blur-[120px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-[-20%] left-[-10%] w-[40%] h-[40%] bg-primary/5 blur-[100px] rounded-full pointer-events-none" />
-
-      <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 bg-surface-1 border border-border rounded-3xl overflow-hidden shadow-2xl relative z-10">
-
-        {/* Left Side: Brand */}
-        <div className="hidden md:flex flex-col justify-between p-12 bg-surface-2 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-bl from-primary/5 to-transparent" />
-
-          <div className="relative z-10">
-            <div className="h-10 w-10 bg-primary rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-primary/20">
-              <span className="material-symbols-outlined text-white text-2xl">hub</span>
+    <div className="min-h-screen w-full flex bg-[#F5F5F0]">
+      {/* Left Side - Signup Form */}
+      <div className="w-full lg:w-1/2 flex flex-col justify-center px-8 sm:px-12 lg:px-16 xl:px-24 bg-[#FAFAF5]">
+        <div className="max-w-sm w-full mx-auto">
+          {/* Logo */}
+          <div className="flex items-center gap-2 mb-10">
+            <div className="h-8 w-8 bg-[#7c3aed] rounded-lg flex items-center justify-center">
+              <span className="material-symbols-outlined text-white text-lg">hub</span>
             </div>
-            <h2 className="text-3xl font-bold tracking-tight text-text-main mb-2">Start building</h2>
-            <p className="text-text-muted">Join thousands of professionals mastering their domains.</p>
+            <span className="font-bold text-xl text-[#0f172a]">Skillvector</span>
           </div>
 
-          <div className="relative z-10 space-y-5">
-            {[
-              { icon: "rocket_launch", color: "text-primary", title: "Career Acceleration", desc: "From 0 to 1 in record time with curated, high-impact paths." },
-              { icon: "verified", color: "text-success", title: "Verified Skills", desc: "Prove your worth with NSQF-aligned certifications and tests." },
-              { icon: "shield", color: "text-violet-500", title: "Privacy First", desc: "Your data is yours. We never sell or expose your profile." },
-            ].map((f) => (
-              <div key={f.title} className="p-4 rounded-xl bg-surface-1 border border-border/50 backdrop-blur-sm">
-                <div className="flex items-center gap-3 mb-1.5">
-                  <span className={`material-symbols-outlined ${f.color} text-xl`}>{f.icon}</span>
-                  <span className="font-semibold text-text-main">{f.title}</span>
-                </div>
-                <p className="text-sm text-text-muted">{f.desc}</p>
-              </div>
-            ))}
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-[#0f172a] mb-2">Create account</h1>
+            <p className="text-[#64748b]">Join thousands of professionals mastering their skills</p>
           </div>
 
-          <div className="relative z-10 text-xs text-text-dim">© 2025 Skillvector Inc.</div>
-        </div>
-
-        {/* Right Side: Registration Form */}
-        <div className="p-8 md:p-14 flex flex-col justify-center bg-surface-1">
-          <div className="w-full max-w-sm mx-auto">
-
-            {/* Mobile logo */}
-            <div className="flex md:hidden items-center gap-2 mb-10">
-              <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center shadow-primary/20 shadow-lg">
-                <span className="material-symbols-outlined text-white text-lg">hub</span>
-              </div>
-              <span className="font-bold text-lg">Skillvector</span>
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm mb-6 flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm">error</span>
+              {error}
             </div>
+          )}
 
-            <div className="mb-8">
-              <h1 className="text-2xl md:text-3xl font-bold text-text-main mb-2">Create account</h1>
-              <p className="text-text-muted text-sm">Begin your personalized AI career journey in seconds.</p>
-            </div>
-
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-3.5 rounded-xl text-sm mb-6 flex items-center gap-2.5">
-                <span className="material-symbols-outlined text-lg flex-shrink-0">error</span>
-                {error}
-              </div>
+          {/* Google Sign Up */}
+          <button
+            onClick={() => googleLogin()}
+            disabled={isLoading}
+            className="w-full bg-white border border-[#e2e8f0] hover:border-[#cbd5e1] text-[#0f172a] font-medium rounded-lg flex items-center justify-center gap-3 transition-all py-3 px-4 mb-3 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {googleLoading ? (
+              <div className="w-5 h-5 border-2 border-[#e2e8f0] border-t-[#7c3aed] rounded-full animate-spin" />
+            ) : (
+              <>
+                <GoogleIcon />
+                <span>Continue with Google</span>
+              </>
             )}
+          </button>
 
-            {/* Registration Form */}
-            <form onSubmit={handleEmailSignup} className="space-y-4 mb-6">
-              <div>
-                <label htmlFor="signup-username" className="block text-xs font-semibold text-text-dim uppercase tracking-wider mb-2">Username</label>
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-6">
+            <div className="flex-1 h-px bg-[#e2e8f0]" />
+            <span className="text-xs text-[#94a3b8] font-medium">or</span>
+            <div className="flex-1 h-px bg-[#e2e8f0]" />
+          </div>
+
+          {/* Registration Form */}
+          <form onSubmit={handleEmailSignup} className="space-y-4">
+            <div>
+              <label htmlFor="signup-username" className="block text-sm font-medium text-[#64748b] mb-1.5">
+                Username
+              </label>
+              <input
+                id="signup-username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="johndoe"
+                required
+                disabled={isLoading}
+                className="w-full px-4 py-3 bg-white border border-[#e2e8f0] rounded-lg text-[#0f172a] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all disabled:opacity-50"
+              />
+            </div>
+            <div>
+              <label htmlFor="signup-email" className="block text-sm font-medium text-[#64748b] mb-1.5">
+                Email
+              </label>
+              <input
+                id="signup-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+                disabled={isLoading}
+                className="w-full px-4 py-3 bg-white border border-[#e2e8f0] rounded-lg text-[#0f172a] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all disabled:opacity-50"
+              />
+            </div>
+            <div>
+              <label htmlFor="signup-password" className="block text-sm font-medium text-[#64748b] mb-1.5">
+                Password
+              </label>
+              <div className="relative">
                 <input
-                  id="signup-username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="johndoe"
-                  required
-                  disabled={isLoading}
-                  className="w-full px-4 py-3 bg-surface-2 border border-border rounded-xl text-text-main placeholder:text-text-dim/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-all disabled:opacity-50"
-                />
-              </div>
-              <div>
-                <label htmlFor="signup-email" className="block text-xs font-semibold text-text-dim uppercase tracking-wider mb-2">Email</label>
-                <input
-                  id="signup-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                  disabled={isLoading}
-                  className="w-full px-4 py-3 bg-surface-2 border border-border rounded-xl text-text-main placeholder:text-text-dim/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-all disabled:opacity-50"
-                />
-              </div>
-              <div>
-                <label htmlFor="signup-password" className="block text-xs font-semibold text-text-dim uppercase tracking-wider mb-2">Password</label>
-                <div className="relative">
-                  <input
-                    id="signup-password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Min. 8 characters"
-                    required
-                    minLength={8}
-                    disabled={isLoading}
-                    className="w-full px-4 py-3 pr-12 bg-surface-2 border border-border rounded-xl text-text-main placeholder:text-text-dim/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-all disabled:opacity-50"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-dim hover:text-text-muted transition-colors"
-                    tabIndex={-1}
-                  >
-                    <span className="material-symbols-outlined text-lg">
-                      {showPassword ? "visibility_off" : "visibility"}
-                    </span>
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label htmlFor="signup-confirm" className="block text-xs font-semibold text-text-dim uppercase tracking-wider mb-2">Confirm Password</label>
-                <input
-                  id="signup-confirm"
+                  id="signup-password"
                   type={showPassword ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repeat your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Min. 8 characters"
                   required
                   minLength={8}
                   disabled={isLoading}
-                  className="w-full px-4 py-3 bg-surface-2 border border-border rounded-xl text-text-main placeholder:text-text-dim/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-all disabled:opacity-50"
+                  className="w-full px-4 py-3 pr-12 bg-white border border-[#e2e8f0] rounded-lg text-[#0f172a] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all disabled:opacity-50"
                 />
-                {password && confirmPassword && password !== confirmPassword && (
-                  <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
-                    <span className="material-symbols-outlined text-xs">error</span>
-                    Passwords do not match
-                  </p>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#64748b] transition-colors"
+                  tabIndex={-1}
+                >
+                  <span className="material-symbols-outlined text-lg">
+                    {showPassword ? "visibility_off" : "visibility"}
+                  </span>
+                </button>
               </div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3.5 bg-primary hover:bg-primary/90 text-white font-semibold rounded-2xl transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-primary/20 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-lg">person_add</span>
-                    Create Account
-                  </>
-                )}
-              </button>
-            </form>
-
-            {/* Divider */}
-            <div className="flex items-center gap-3 mb-6">
-              <div className="flex-1 h-px bg-border" />
-              <span className="text-xs text-text-dim font-medium tracking-wide">OR</span>
-              <div className="flex-1 h-px bg-border" />
             </div>
-
-            {/* Google Sign-Up Button */}
+            <div>
+              <label htmlFor="signup-confirm" className="block text-sm font-medium text-[#64748b] mb-1.5">
+                Confirm Password
+              </label>
+              <input
+                id="signup-confirm"
+                type={showPassword ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Repeat your password"
+                required
+                minLength={8}
+                disabled={isLoading}
+                className="w-full px-4 py-3 bg-white border border-[#e2e8f0] rounded-lg text-[#0f172a] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all disabled:opacity-50"
+              />
+              {password && confirmPassword && password !== confirmPassword && (
+                <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-xs">error</span>
+                  Passwords do not match
+                </p>
+              )}
+            </div>
             <button
-              onClick={() => googleLogin()}
+              type="submit"
               disabled={isLoading}
-              className="w-full bg-surface-2 hover:bg-surface-3 border border-border hover:border-border-highlight text-text-main font-semibold rounded-2xl flex items-center justify-center gap-3 transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed py-3.5 px-5 mb-8"
+              className="w-full py-3 bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
             >
-              {googleLoading ? (
-                <div className="w-5 h-5 border-2 border-text-dim/30 border-t-primary rounded-full animate-spin" />
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
-                <>
-                  <GoogleIcon />
-                  <span>Sign up with Google</span>
-                </>
+                "Create Account"
               )}
             </button>
+          </form>
 
-            {/* Sign in link */}
-            <p className="text-center text-sm text-text-muted">
-              Already have an account?{" "}
-              <Link href="/login" className="text-primary font-semibold hover:underline">
-                Sign in
-              </Link>
-            </p>
+          {/* Sign in link */}
+          <p className="text-center text-sm text-[#64748b] mt-6">
+            Already have an account?{" "}
+            <Link href="/login" className="text-[#7c3aed] font-medium hover:underline">
+              Sign in
+            </Link>
+          </p>
 
-            <p className="text-center text-xs text-text-dim leading-relaxed mt-6">
-              By continuing, you agree to Skillvector&apos;s{" "}
-              <span className="text-primary cursor-pointer hover:underline">Terms of Service</span>
-              {" "}and{" "}
-              <span className="text-primary cursor-pointer hover:underline">Privacy Policy</span>.
-            </p>
+          {/* Footer */}
+          <p className="text-center text-xs text-[#94a3b8] mt-8 leading-relaxed">
+            By continuing, you agree to Skillvector&apos;s{" "}
+            <span className="text-[#7c3aed] cursor-pointer hover:underline">Terms of Service</span>
+            {" "}and{" "}
+            <span className="text-[#7c3aed] cursor-pointer hover:underline">Privacy Policy</span>.
+          </p>
+        </div>
+      </div>
+
+      {/* Right Side - Testimonial */}
+      <div className="hidden lg:flex lg:w-1/2 bg-[#F5F5F0] flex-col justify-between p-12 xl:p-16 relative overflow-hidden">
+        {/* Documentation link */}
+        <div className="relative z-10 flex justify-end">
+          <Link href="/documentation" className="inline-flex items-center gap-1.5 text-sm text-[#64748b] hover:text-[#0f172a] transition-colors">
+            <span className="material-symbols-outlined text-sm">description</span>
+            Documentation
+          </Link>
+        </div>
+
+        {/* Testimonial */}
+        <div className="relative z-10 max-w-lg">
+          <div className="text-[#7c3aed]/20 text-7xl font-serif leading-none mb-2">"</div>
+          <blockquote className="text-2xl xl:text-3xl font-medium text-[#0f172a] leading-relaxed -mt-4">
+            Skillvector helped me identify my skill gaps and land my dream job in just 3 months. The AI-powered learning paths are game-changing!
+          </blockquote>
+          <div className="flex items-center gap-3 mt-8">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#7c3aed] to-violet-400 flex items-center justify-center text-white font-semibold text-sm">
+              SK
+            </div>
+            <div>
+              <p className="font-medium text-[#0f172a]">Sarah Kim</p>
+              <p className="text-sm text-[#64748b]">Software Engineer at Google</p>
+            </div>
           </div>
+        </div>
+
+        {/* Copyright */}
+        <div className="relative z-10 text-sm text-[#94a3b8]">
+          © 2025 Skillvector Inc.
         </div>
       </div>
     </div>

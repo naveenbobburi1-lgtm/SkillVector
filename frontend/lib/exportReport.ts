@@ -39,20 +39,20 @@ function ensureSpace(doc: jsPDF, y: number, needed: number): number {
     return y;
 }
 
+const MARGIN = 14;
+
 function drawSectionHeader(doc: jsPDF, title: string, y: number): number {
     const pageWidth = doc.internal.pageSize.getWidth();
-    y = ensureSpace(doc, y, 20);
-    // Accent bar
+    y = ensureSpace(doc, y, 24);
     doc.setFillColor(...COLORS.primary);
-    doc.roundedRect(14, y - 1, 4, 12, 2, 2, "F");
+    doc.roundedRect(MARGIN, y - 1, 4, 12, 2, 2, "F");
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...COLORS.dark);
-    doc.text(title, 22, y + 8);
-    // Subtle line
+    doc.text(title, MARGIN + 8, y + 8);
     doc.setDrawColor(226, 232, 240);
     doc.setLineWidth(0.3);
-    doc.line(14, y + 14, pageWidth - 14, y + 14);
+    doc.line(MARGIN, y + 14, pageWidth - MARGIN, y + 14);
     return y + 20;
 }
 
@@ -66,18 +66,15 @@ function drawKPIBox(
     value: string,
     color: [number, number, number]
 ) {
-    // Box background
     doc.setFillColor(color[0], color[1], color[2]);
     doc.roundedRect(x, y, w, h, 3, 3, "F");
-    // Value
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(18);
+    doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
-    doc.text(value, x + w / 2, y + h / 2 - 2, { align: "center" });
-    // Label
-    doc.setFontSize(8);
+    doc.text(value, x + w / 2, y + h / 2 - 6, { align: "center" });
+    doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
-    doc.text(label, x + w / 2, y + h / 2 + 8, { align: "center" });
+    doc.text(label, x + w / 2, y + h / 2 + 4, { align: "center" });
 }
 
 function drawCoverageGauge(doc: jsPDF, x: number, y: number, percent: number) {
@@ -140,7 +137,7 @@ export function exportMarketInsightsReport(
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 14;
+    const margin = MARGIN;
     const contentWidth = pageWidth - margin * 2;
     let y = 0;
 
@@ -182,6 +179,8 @@ export function exportMarketInsightsReport(
     doc.setFont("helvetica", "normal");
     doc.setTextColor(180, 180, 220);
     doc.text(`SOC: ${gapAnalysis.soc_code}`, pageWidth - margin, 42, { align: "right" });
+    doc.setFontSize(7);
+    doc.text("Data: Real-time (Exa) + Static (O*NET)", pageWidth - margin, 50, { align: "right" });
 
     y = 68;
 
@@ -217,23 +216,25 @@ export function exportMarketInsightsReport(
         }
 
         if (tableBody.length) {
+            const colW = contentWidth / 4;
             autoTable(doc, {
                 startY: y,
                 head: [["Field", "Details", "Field", "Details"]],
                 body: tableBody,
                 theme: "plain",
+                tableWidth: contentWidth,
                 headStyles: {
                     fillColor: COLORS.lightGray,
                     textColor: COLORS.dark,
                     fontStyle: "bold",
                     fontSize: 8,
                 },
-                styles: { fontSize: 9, cellPadding: 3 },
+                styles: { fontSize: 9, cellPadding: 4 },
                 columnStyles: {
-                    0: { fontStyle: "bold", textColor: COLORS.gray, cellWidth: 35 },
-                    1: { textColor: COLORS.dark },
-                    2: { fontStyle: "bold", textColor: COLORS.gray, cellWidth: 35 },
-                    3: { textColor: COLORS.dark },
+                    0: { fontStyle: "bold", textColor: COLORS.gray, cellWidth: colW },
+                    1: { textColor: COLORS.dark, cellWidth: colW },
+                    2: { fontStyle: "bold", textColor: COLORS.gray, cellWidth: colW },
+                    3: { textColor: COLORS.dark, cellWidth: colW },
                 },
                 margin: { left: margin, right: margin },
             });
@@ -257,8 +258,10 @@ export function exportMarketInsightsReport(
             doc.text("Learning Preferences:", margin + 4, y + 6);
             doc.setFont("helvetica", "normal");
             doc.setTextColor(...COLORS.dark);
-            doc.text(prefParts.join("   |   "), margin + 40, y + 6);
-            y += 20;
+            const prefText = prefParts.join("   |   ");
+            const prefWrapped = doc.splitTextToSize(prefText, contentWidth - 52);
+            doc.text(prefWrapped, margin + 50, y + 6);
+            y += 18;
         }
 
         // Preferred Industries
@@ -268,12 +271,13 @@ export function exportMarketInsightsReport(
             doc.setFont("helvetica", "bold");
             doc.setTextColor(...COLORS.gray);
             doc.text("Preferred Industries:", margin, y + 4);
-            let tagX = margin + 38;
+            const labelWidth = 48;
+            let tagX = margin + labelWidth;
             for (const ind of userProfile.preferred_industries) {
                 const tagW = drawSkillTag(doc, ind, tagX, y + 4, COLORS.primaryDark);
                 tagX += tagW;
                 if (tagX > pageWidth - margin - 20) {
-                    tagX = margin + 38;
+                    tagX = margin + labelWidth;
                     y += 12;
                     y = ensureSpace(doc, y, 16);
                 }
@@ -318,22 +322,110 @@ export function exportMarketInsightsReport(
     const missingCount = gapAnalysis.insights.missing_skills.length;
     const matchedCount = totalRequired - missingCount;
 
-    // KPI boxes row
-    const kpiBoxW = (contentWidth - 12) / 4;
+    // KPI boxes row - equal width with consistent gaps
+    const kpiGap = 4;
+    const kpiBoxW = (contentWidth - kpiGap * 3) / 4;
     drawKPIBox(doc, margin, y, kpiBoxW, 28, "PROFILE MATCH", `${coveragePercent}%`,
         coveragePercent >= 75 ? COLORS.success : coveragePercent >= 50 ? COLORS.warning : COLORS.error);
-    drawKPIBox(doc, margin + kpiBoxW + 4, y, kpiBoxW, 28, "REQUIRED SKILLS", String(totalRequired), COLORS.primary);
-    drawKPIBox(doc, margin + (kpiBoxW + 4) * 2, y, kpiBoxW, 28, "SKILLS MATCHED", String(matchedCount), COLORS.success);
-    drawKPIBox(doc, margin + (kpiBoxW + 4) * 3, y, kpiBoxW, 28, "SKILL GAPS", String(missingCount),
+    drawKPIBox(doc, margin + kpiBoxW + kpiGap, y, kpiBoxW, 28, "REQUIRED", String(totalRequired), COLORS.primary);
+    drawKPIBox(doc, margin + (kpiBoxW + kpiGap) * 2, y, kpiBoxW, 28, "MATCHED", String(matchedCount), COLORS.success);
+    drawKPIBox(doc, margin + (kpiBoxW + kpiGap) * 3, y, kpiBoxW, 28, "GAPS", String(missingCount),
         missingCount > 0 ? COLORS.error : COLORS.success);
 
-    y += 38;
+    y += 36;
 
     // ============================================================
-    // SECTION 3: MARKET OUTLOOK
+    // SECTION 3a: REAL-TIME MARKET DATA (Exa)
+    // ============================================================
+    const realtime = outlook.realtime;
+    if (realtime) {
+        y = ensureSpace(doc, y, 50);
+        y = drawSectionHeader(doc, "Real-time Market Data (Exa API)", y);
+
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(...COLORS.gray);
+        doc.text("Live data from web search — updated on each refresh", margin, y + 4);
+        y += 10;
+
+        autoTable(doc, {
+            startY: y,
+            head: [["Metric", "Value"]],
+            body: [
+                ["Growth Rate", realtime.growth_rate || "N/A"],
+                ["Total Jobs", realtime.total_jobs || "N/A"],
+                ["Starting Salary", realtime.starting_salary || "N/A"],
+                ["Average Salary", realtime.average_salary || "N/A"],
+                ["Max Salary", realtime.max_salary || "N/A"],
+            ],
+            theme: "striped",
+            tableWidth: contentWidth,
+            headStyles: { fillColor: [16, 185, 129], fontSize: 9 },
+            styles: { fontSize: 10, cellPadding: 5 },
+            columnStyles: { 0: { fontStyle: "bold", cellWidth: 50 }, 1: { cellWidth: contentWidth - 50 } },
+            margin: { left: margin, right: margin },
+        });
+        y = (doc as any).lastAutoTable.finalY + 8;
+
+        // Real-time training skills
+        const exaSkills = realtime.training_skills || gapAnalysis.exa_skills || [];
+        if (exaSkills.length) {
+            y = ensureSpace(doc, y, 30);
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(...COLORS.dark);
+            doc.text(`Real-time Training Skills (Exa) — ${exaSkills.length} skills`, margin, y + 4);
+            y += 8;
+            let tagX = margin;
+            for (const skill of exaSkills) {
+                doc.setFontSize(8);
+                const tw = doc.getTextWidth(skill) + 8;
+                if (tagX + tw > pageWidth - margin) {
+                    tagX = margin;
+                    y += 12;
+                    y = ensureSpace(doc, y, 14);
+                }
+                drawSkillTag(doc, skill, tagX, y, COLORS.success);
+                tagX += tw + 3;
+            }
+            y += 18;
+        }
+    }
+
+    // O*NET skills (static)
+    if (gapAnalysis.onet_skills?.length) {
+        y = ensureSpace(doc, y, 30);
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...COLORS.dark);
+        doc.text(`O*NET Occupational Skills (Static) — ${gapAnalysis.onet_skills.length} skills`, margin, y + 4);
+        y += 8;
+        let tagX = margin;
+        for (const skill of gapAnalysis.onet_skills) {
+            doc.setFontSize(8);
+            const tw = doc.getTextWidth(skill) + 8;
+            if (tagX + tw > pageWidth - margin) {
+                tagX = margin;
+                y += 12;
+                y = ensureSpace(doc, y, 14);
+            }
+            drawSkillTag(doc, skill, tagX, y, COLORS.primary);
+            tagX += tw + 3;
+        }
+        y += 18;
+    }
+
+    // ============================================================
+    // SECTION 3b: STATIC MARKET OUTLOOK (O*NET)
     // ============================================================
     y = ensureSpace(doc, y, 50);
-    y = drawSectionHeader(doc, "Market Outlook", y);
+    y = drawSectionHeader(doc, "Static Market Outlook (O*NET & AI)", y);
+
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...COLORS.gray);
+    doc.text("Occupational data and AI-derived insights", margin, y + 4);
+    y += 10;
 
     autoTable(doc, {
         startY: y,
@@ -344,9 +436,10 @@ export function exportMarketInsightsReport(
             ["Hot Sectors", (outlook.hot_sectors || []).join(", ") || "N/A"],
         ],
         theme: "striped",
+        tableWidth: contentWidth,
         headStyles: { fillColor: COLORS.primary, fontSize: 9 },
         styles: { fontSize: 10, cellPadding: 5 },
-        columnStyles: { 0: { fontStyle: "bold", cellWidth: 55 } },
+        columnStyles: { 0: { fontStyle: "bold", cellWidth: 50 }, 1: { cellWidth: contentWidth - 50 } },
         margin: { left: margin, right: margin },
     });
     y = (doc as any).lastAutoTable.finalY + 10;
@@ -385,6 +478,8 @@ export function exportMarketInsightsReport(
         autoTable(doc, {
             startY: y,
             head: [["#", "Skill", "Status"]],
+            tableWidth: contentWidth,
+            columnStyles: { 0: { cellWidth: 14 }, 1: { cellWidth: contentWidth - 90 }, 2: { cellWidth: 40 } },
             body: outlook.trending_skills.map((s, i) => [
                 String(i + 1),
                 s,
@@ -397,7 +492,6 @@ export function exportMarketInsightsReport(
             theme: "striped",
             headStyles: { fillColor: COLORS.primary, fontSize: 9 },
             styles: { fontSize: 9, cellPadding: 4 },
-            columnStyles: { 0: { cellWidth: 12 } },
             didParseCell: (data: any) => {
                 if (data.section === "body" && data.column.index === 2) {
                     if (data.cell.raw === "You have this") {
@@ -414,57 +508,69 @@ export function exportMarketInsightsReport(
     }
 
     // ============================================================
-    // SECTION 5: SKILL GAP ANALYSIS (DETAILED)
+    // SECTION 5: SKILL GAP ANALYSIS (Exa + O*NET Combined)
     // ============================================================
     y = ensureSpace(doc, y, 50);
-    y = drawSectionHeader(doc, "Skill Gap Analysis", y);
+    y = drawSectionHeader(doc, "Skill Gap Analysis (Exa + O*NET)", y);
+
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...COLORS.gray);
+    doc.text("Missing skills derived from Real-time (Exa) + O*NET requirements", margin, y + 4);
+    y += 10;
 
     // Coverage gauge + summary side by side
     y = ensureSpace(doc, y, 55);
     drawCoverageGauge(doc, margin + 30, y + 25, coveragePercent);
 
     // Summary text next to gauge
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...COLORS.dark);
-    const summaryX = margin + 70;
-    doc.text(`Your profile covers ${coveragePercent}% of the standard market requirements`, summaryX, y + 10);
-    doc.text(`for ${gapAnalysis.role} roles (SOC: ${gapAnalysis.soc_code}).`, summaryX, y + 18);
-
+    const summaryX = margin + 64;
+    const summaryW = pageWidth - summaryX - margin;
+    const line1 = doc.splitTextToSize(`Your profile covers ${coveragePercent}% of market requirements (Exa + O*NET) for ${gapAnalysis.role} roles (SOC: ${gapAnalysis.soc_code}).`, summaryW);
+    let summaryY = y + 10;
+    doc.text(line1, summaryX, summaryY);
+    const line1Height = (Array.isArray(line1) ? line1.length : 1) * 5;
+    summaryY += line1Height + 6;
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...COLORS.success);
-    doc.text(`${matchedCount} skills matched`, summaryX, y + 30);
+    doc.text(`${matchedCount} skills matched`, summaryX, summaryY);
     doc.setTextColor(...(missingCount > 0 ? COLORS.error : COLORS.success));
-    doc.text(`${missingCount} skills missing`, summaryX + 45, y + 30);
-
+    doc.text(`${missingCount} skills missing`, summaryX, summaryY + 10);
+    summaryY += 18;
+    const skillsLineY = summaryY;
     if (coveragePercent >= 75) {
         doc.setTextColor(...COLORS.success);
         doc.setFont("helvetica", "bold");
-        doc.text("Strong candidate — minimal upskilling needed.", summaryX, y + 42);
+        doc.text("Strong candidate — minimal upskilling needed.", summaryX, skillsLineY);
     } else if (coveragePercent >= 50) {
         doc.setTextColor(...COLORS.warning);
         doc.setFont("helvetica", "bold");
-        doc.text("Moderate gaps — targeted learning recommended.", summaryX, y + 42);
+        doc.text("Moderate gaps — targeted learning recommended.", summaryX, skillsLineY);
     } else {
         doc.setTextColor(...COLORS.error);
         doc.setFont("helvetica", "bold");
-        doc.text("Significant gaps — structured learning plan suggested.", summaryX, y + 42);
+        doc.text("Significant gaps — structured learning plan suggested.", summaryX, skillsLineY);
     }
 
-    y += 55;
+    y = skillsLineY + 12;
 
-    // Core Required Skills table
+    // Core Required Skills table (Exa + O*NET combined)
     if (gapAnalysis.insights.market_required_skills.length) {
         y = ensureSpace(doc, y, 40);
         doc.setFontSize(11);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(...COLORS.dark);
-        doc.text(`Core Required Skills (${totalRequired})`, margin, y + 4);
+        doc.text(`Core Required Skills — Exa + O*NET (${totalRequired})`, margin, y + 4);
         y += 8;
 
         autoTable(doc, {
             startY: y,
             head: [["#", "Skill", "Your Status"]],
+            tableWidth: contentWidth,
+            columnStyles: { 0: { cellWidth: 14 }, 1: { cellWidth: contentWidth - 55 }, 2: { cellWidth: 35 } },
             body: gapAnalysis.insights.market_required_skills.map((s, i) => {
                 const hasSkill = userProfile?.skills?.some(
                     (us) => (typeof us === "object" ? us.name : us).toLowerCase() === s.toLowerCase()
@@ -474,7 +580,6 @@ export function exportMarketInsightsReport(
             theme: "striped",
             headStyles: { fillColor: COLORS.primary, fontSize: 9 },
             styles: { fontSize: 9, cellPadding: 3 },
-            columnStyles: { 0: { cellWidth: 12 } },
             didParseCell: (data: any) => {
                 if (data.section === "body" && data.column.index === 2) {
                     if (data.cell.raw === "Acquired") {
@@ -503,6 +608,8 @@ export function exportMarketInsightsReport(
         autoTable(doc, {
             startY: y,
             head: [["#", "Missing Skill", "Priority"]],
+            tableWidth: contentWidth,
+            columnStyles: { 0: { cellWidth: 14 }, 1: { cellWidth: contentWidth - 50 }, 2: { cellWidth: 30 } },
             body: gapAnalysis.insights.missing_skills.map((s, i) => [
                 String(i + 1),
                 s,
@@ -511,7 +618,6 @@ export function exportMarketInsightsReport(
             theme: "striped",
             headStyles: { fillColor: COLORS.error, fontSize: 9 },
             styles: { fontSize: 9, cellPadding: 3 },
-            columnStyles: { 0: { cellWidth: 12 } },
             didParseCell: (data: any) => {
                 if (data.section === "body" && data.column.index === 2) {
                     const p = data.cell.raw;
@@ -571,21 +677,21 @@ export function exportMarketInsightsReport(
         recommendations.push("Keep your skills current and monitor market trends regularly.");
     }
 
+    const numWidth = 10;
     recommendations.forEach((rec, i) => {
-        y = ensureSpace(doc, y, 16);
+        const recLines = doc.splitTextToSize(rec, contentWidth - numWidth - 8);
+        const recHeight = Math.max(14, recLines.length * 5 + 8);
+        y = ensureSpace(doc, y, recHeight + 4);
         doc.setFillColor(...COLORS.lightGray);
-        const recLines = doc.splitTextToSize(rec, contentWidth - 22);
-        const recHeight = recLines.length * 5 + 8;
         doc.roundedRect(margin, y, contentWidth, recHeight, 2, 2, "F");
-
         doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(...COLORS.primary);
-        doc.text(`${i + 1}.`, margin + 4, y + 7);
+        doc.text(`${i + 1}.`, margin + 5, y + 7);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(...COLORS.dark);
-        doc.text(recLines, margin + 12, y + 7);
-        y += recHeight + 4;
+        doc.text(recLines, margin + numWidth, y + 7);
+        y += recHeight + 6;
     });
 
     // ============================================================

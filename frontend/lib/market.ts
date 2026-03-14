@@ -9,6 +9,23 @@ export interface MarketGapAnalysis {
         skill_coverage_percent: number;
     };
     onet_skills: string[];
+    exa_skills?: string[];
+}
+
+export interface RealtimeMarketData {
+    training_skills: string[];
+    growth_rate: string;
+    total_jobs: string;
+    starting_salary: string;
+    average_salary: string;
+    max_salary: string;
+    data_source: "realtime" | "static";
+    fallback_reason?: string;
+}
+
+export interface DataSources {
+    static: boolean;
+    realtime: boolean;
 }
 
 export interface MarketOutlook {
@@ -17,6 +34,8 @@ export interface MarketOutlook {
     salary_insight: string;
     market_outlook: string;
     hot_sectors: string[];
+    data_sources?: DataSources;
+    realtime?: RealtimeMarketData;
 }
 
 export async function getMarketGapAnalysis(): Promise<MarketGapAnalysis> {

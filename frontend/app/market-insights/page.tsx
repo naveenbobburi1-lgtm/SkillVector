@@ -86,6 +86,19 @@ export default function MarketInsightsPage() {
 
             <main className="flex-1 max-w-7xl w-full mx-auto p-6 lg:p-10 space-y-10">
 
+                {/* Data Source Indicator */}
+                <div className="flex flex-wrap gap-2 items-center p-4 rounded-xl bg-surface-1 border border-border">
+                    <span className="text-sm font-medium text-text-muted">Data sources:</span>
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ${outlook?.data_sources?.realtime ? "bg-success/15 text-success border border-success/30" : "bg-surface-2 text-text-dim border border-border"}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${outlook?.data_sources?.realtime ? "bg-success animate-pulse" : "bg-text-dim"}`}></span>
+                        Real-time (Exa API)
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-2 text-text-muted border border-border text-xs font-medium">
+                        <span className="h-1.5 w-1.5 rounded-full bg-text-dim"></span>
+                        Static (O*NET & Host Internet)
+                    </span>
+                </div>
+
                 {/* Header Section */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 fade-in-up">
                     <div>
@@ -131,25 +144,53 @@ export default function MarketInsightsPage() {
                     {/* LEFT COLUMN: Insight Intelligence (8 cols) */}
                     <div className="lg:col-span-8 flex flex-col gap-8">
 
-                        {/* Summary Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <InsightCard
-                                title="Projected Growth"
-                                value={outlook?.role_growth || "--"}
-                                icon="trending_up"
-                                trend="positive"
-                            />
-                            <InsightCard
-                                title="Salary Competitiveness"
-                                value={outlook?.salary_insight || "--"}
-                                icon="payments"
-                            />
-                            <InsightCard
-                                title="Hot Sectors"
-                                value={outlook?.hot_sectors || []}
-                                icon="domain"
-                            />
-                        </div>
+                        {/* 1. Real-time Market Data (Exa API) - SHOWN FIRST */}
+                        {outlook?.realtime && (
+                            <div className="glass-panel p-8 rounded-2xl border-l-4 border-l-success relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-4 flex items-center gap-2">
+                                    <span className="h-2 w-2 rounded-full bg-success animate-pulse"></span>
+                                    <span className="text-xs font-semibold text-success uppercase tracking-wide">Real-time</span>
+                                </div>
+                                <h3 className="text-lg font-bold text-text-main mb-6 flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-success">bolt</span>
+                                    Real-time Market Data (Exa)
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    <div className="p-4 rounded-xl bg-background/50 border border-border">
+                                        <span className="text-xs font-semibold text-text-muted uppercase tracking-wider block mb-1">Growth Rate</span>
+                                        <p className="text-xl font-bold text-text-main">{outlook.realtime.growth_rate || "N/A"}</p>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-background/50 border border-border">
+                                        <span className="text-xs font-semibold text-text-muted uppercase tracking-wider block mb-1">Total Jobs</span>
+                                        <p className="text-xl font-bold text-text-main">{outlook.realtime.total_jobs || "N/A"}</p>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-background/50 border border-border">
+                                        <span className="text-xs font-semibold text-text-muted uppercase tracking-wider block mb-1">Starting Salary</span>
+                                        <p className="text-xl font-bold text-primary">{outlook.realtime.starting_salary || "N/A"}</p>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-background/50 border border-border">
+                                        <span className="text-xs font-semibold text-text-muted uppercase tracking-wider block mb-1">Average Salary</span>
+                                        <p className="text-xl font-bold text-primary">{outlook.realtime.average_salary || "N/A"}</p>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-background/50 border border-border">
+                                        <span className="text-xs font-semibold text-text-muted uppercase tracking-wider block mb-1">Max Salary</span>
+                                        <p className="text-xl font-bold text-primary">{outlook.realtime.max_salary || "N/A"}</p>
+                                    </div>
+                                </div>
+                                {(outlook.realtime.training_skills?.length || gapAnalysis?.exa_skills?.length) ? (
+                                    <div className="mt-6 pt-6 border-t border-border">
+                                        <h4 className="text-sm font-bold text-text-muted mb-3 uppercase tracking-wider">Real-time Training Skills (Exa)</h4>
+                                        <div className="flex flex-wrap gap-2">
+                                            {(outlook.realtime.training_skills || gapAnalysis?.exa_skills || []).map((skill, i) => (
+                                                <span key={i} className="px-3 py-1.5 bg-success/10 text-success rounded-lg text-sm font-medium border border-success/20">
+                                                    {skill}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : null}
+                            </div>
+                        )}
 
                         {/* Market Outlook Long Card */}
                         <div className="glass-panel p-8 rounded-2xl relative overflow-hidden">
@@ -203,17 +244,18 @@ export default function MarketInsightsPage() {
                             <SkillGapChart coverage={gapAnalysis?.insights.skill_coverage_percent || 0} />
 
                             <p className="mt-6 text-sm text-text-muted">
-                                Your profile matches <strong className="text-text-main">{gapAnalysis?.insights.skill_coverage_percent}%</strong> of the standard requirements for this role.
+                                Your profile matches <strong className="text-text-main">{gapAnalysis?.insights.skill_coverage_percent}%</strong> of market requirements (Exa + O*NET) for this role.
                             </p>
                         </div>
 
-                        {/* Missing Skills Alert */}
+                        {/* Missing Skills Alert (Exa + O*NET combined) */}
                         {gapAnalysis?.insights.missing_skills.length ? (
                             <div className="glass-panel p-6 rounded-2xl border-error/20 bg-error/5">
-                                <div className="flex items-center gap-2 mb-4">
+                                <div className="flex items-center gap-2 mb-2">
                                     <span className="material-symbols-outlined text-error">warning</span>
                                     <h3 className="font-bold text-text-main">Critical Gaps Detected</h3>
                                 </div>
+                                <p className="text-xs text-text-muted mb-4">From Real-time (Exa) + O*NET requirements</p>
                                 <div className="space-y-2">
                                     {gapAnalysis.insights.missing_skills.slice(0, 5).map((skill, i) => (
                                         <div key={i} className="flex items-center justify-between p-3 bg-surface-1 rounded-lg border border-error/10">
@@ -242,14 +284,39 @@ export default function MarketInsightsPage() {
                             </div>
                         )}
 
-                        {/* Core Requirements List — O*NET + Live split */}
+                        {/* Combined Requirements: Exa first, then O*NET */}
                         <div className="glass-panel p-6 rounded-2xl space-y-5">
-                            {/* O*NET skills */}
+                            {/* Exa real-time skills - shown first */}
+                            {(gapAnalysis?.exa_skills?.length || outlook?.realtime?.training_skills?.length) ? (
+                                <div>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="material-symbols-outlined text-success text-sm">bolt</span>
+                                        <h3 className="text-xs font-bold uppercase tracking-wider text-success">Real-time (Exa)</h3>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {(gapAnalysis?.exa_skills || outlook?.realtime?.training_skills || []).map((skill, i) => {
+                                            const missing = gapAnalysis?.insights.missing_skills
+                                                ?.map(s => s.toLowerCase())
+                                                .includes(skill.toLowerCase());
+                                            return (
+                                                <span key={i} className={`text-xs px-2 py-1 rounded-md border ${
+                                                    missing
+                                                        ? "bg-error/10 text-error border-error/20"
+                                                        : "bg-success/10 text-success border-success/20"
+                                                }`}>
+                                                    {skill}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ) : null}
+                            {/* O*NET skills - shown at bottom */}
                             {gapAnalysis?.onet_skills && gapAnalysis.onet_skills.length > 0 && (
                                 <div>
                                     <div className="flex items-center gap-2 mb-3">
                                         <span className="material-symbols-outlined text-primary text-sm">dataset</span>
-                                        <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted">O*NET Occupational Data</h3>
+                                        <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted">O*NET (Static)</h3>
                                     </div>
                                     <div className="flex flex-wrap gap-1.5">
                                         {gapAnalysis.onet_skills.slice(0, 12).map((skill, i) => {
@@ -269,7 +336,6 @@ export default function MarketInsightsPage() {
                                     </div>
                                 </div>
                             )}
-
                         </div>
 
                     </div>
