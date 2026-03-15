@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useGoogleLogin } from "@react-oauth/google";
 import { setToken, API_BASE_URL, registerUser, loginUser } from "@/lib/auth";
+import { motion, AnimatePresence } from "framer-motion";
 
 function GoogleIcon() {
   return (
@@ -102,59 +103,50 @@ export default function SignupPage() {
   const isLoading = loading || googleLoading;
 
   return (
-    <div className="min-h-screen w-full flex bg-[#F5F5F0]">
+    <div className="min-h-screen w-full flex bg-background selection:bg-primary/20">
       {/* Left Side - Signup Form */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center px-8 sm:px-12 lg:px-16 xl:px-24 bg-[#FAFAF5]">
-        <div className="max-w-sm w-full mx-auto">
+      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 sm:px-12 lg:px-16 xl:px-24 bg-surface-1 relative z-10 shadow-xl lg:shadow-none py-12">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="max-w-sm w-full mx-auto"
+        >
           {/* Logo */}
-          <div className="flex items-center gap-2 mb-10">
-            <div className="h-8 w-8 bg-[#7c3aed] rounded-lg flex items-center justify-center">
-              <span className="material-symbols-outlined text-white text-lg">hub</span>
+          <Link href="/" className="inline-flex items-center gap-2 mb-10 group">
+            <div className="h-10 w-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-110 transition-transform duration-300">
+              <span className="material-symbols-outlined text-white text-xl">hub</span>
             </div>
-            <span className="font-bold text-xl text-[#0f172a]">Skillvector</span>
-          </div>
+            <span className="font-bold text-2xl text-text-main tracking-tight">SkillVector</span>
+          </Link>
 
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-[#0f172a] mb-2">Create account</h1>
-            <p className="text-[#64748b]">Join thousands of professionals mastering their skills</p>
+            <h1 className="text-4xl font-extrabold text-text-main mb-3 tracking-tight">Create account</h1>
+            <p className="text-text-muted text-lg">Join 12,000+ professionals mapping their future</p>
           </div>
 
           {/* Error Message */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm mb-6 flex items-center gap-2">
-              <span className="material-symbols-outlined text-sm">error</span>
-              {error}
-            </div>
-          )}
-
-          {/* Google Sign Up */}
-          <button
-            onClick={() => googleLogin()}
-            disabled={isLoading}
-            className="w-full bg-white border border-[#e2e8f0] hover:border-[#cbd5e1] text-[#0f172a] font-medium rounded-lg flex items-center justify-center gap-3 transition-all py-3 px-4 mb-3 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {googleLoading ? (
-              <div className="w-5 h-5 border-2 border-[#e2e8f0] border-t-[#7c3aed] rounded-full animate-spin" />
-            ) : (
-              <>
-                <GoogleIcon />
-                <span>Continue with Google</span>
-              </>
+          <AnimatePresence mode="wait">
+            {error && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden mb-6"
+              >
+                <div className="bg-error/5 border border-error/20 text-error px-4 py-3 rounded-xl text-sm flex items-center gap-3">
+                  <span className="material-symbols-outlined text-lg">error</span>
+                  <span className="font-medium">{error}</span>
+                </div>
+              </motion.div>
             )}
-          </button>
+          </AnimatePresence>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-[#e2e8f0]" />
-            <span className="text-xs text-[#94a3b8] font-medium">or</span>
-            <div className="flex-1 h-px bg-[#e2e8f0]" />
-          </div>
-
-          {/* Registration Form */}
+          {/* Registration Form - Now on TOP */}
           <form onSubmit={handleEmailSignup} className="space-y-4">
-            <div>
-              <label htmlFor="signup-username" className="block text-sm font-medium text-[#64748b] mb-1.5">
+            <div className="space-y-1.5">
+              <label htmlFor="signup-username" className="block text-sm font-bold text-text-muted ml-1">
                 Username
               </label>
               <input
@@ -165,12 +157,12 @@ export default function SignupPage() {
                 placeholder="johndoe"
                 required
                 disabled={isLoading}
-                className="w-full px-4 py-3 bg-white border border-[#e2e8f0] rounded-lg text-[#0f172a] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all disabled:opacity-50"
+                className="w-full px-4 py-3 bg-surface-2 border border-border rounded-xl text-text-main placeholder:text-text-dim focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50"
               />
             </div>
-            <div>
-              <label htmlFor="signup-email" className="block text-sm font-medium text-[#64748b] mb-1.5">
-                Email
+            <div className="space-y-1.5">
+              <label htmlFor="signup-email" className="block text-sm font-bold text-text-muted ml-1">
+                Email Address
               </label>
               <input
                 id="signup-email"
@@ -180,120 +172,192 @@ export default function SignupPage() {
                 placeholder="you@example.com"
                 required
                 disabled={isLoading}
-                className="w-full px-4 py-3 bg-white border border-[#e2e8f0] rounded-lg text-[#0f172a] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all disabled:opacity-50"
+                className="w-full px-4 py-3 bg-surface-2 border border-border rounded-xl text-text-main placeholder:text-text-dim focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50"
               />
             </div>
-            <div>
-              <label htmlFor="signup-password" className="block text-sm font-medium text-[#64748b] mb-1.5">
-                Password
-              </label>
-              <div className="relative">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label htmlFor="signup-password" className="block text-sm font-bold text-text-muted ml-1">
+                  Password
+                </label>
+                <div className="relative">
+                  <input
+                    id="signup-password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Min. 8 char"
+                    required
+                    minLength={8}
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 bg-surface-2 border border-border rounded-xl text-text-main placeholder:text-text-dim focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-dim hover:text-text-muted transition-colors"
+                    tabIndex={-1}
+                  >
+                    <span className="material-symbols-outlined text-lg">
+                      {showPassword ? "visibility_off" : "visibility"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="signup-confirm" className="block text-sm font-bold text-text-muted ml-1">
+                  Confirm
+                </label>
                 <input
-                  id="signup-password"
+                  id="signup-confirm"
                   type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min. 8 characters"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Repeat"
                   required
                   minLength={8}
                   disabled={isLoading}
-                  className="w-full px-4 py-3 pr-12 bg-white border border-[#e2e8f0] rounded-lg text-[#0f172a] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all disabled:opacity-50"
+                  className="w-full px-4 py-3 bg-surface-2 border border-border rounded-xl text-text-main placeholder:text-text-dim focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#64748b] transition-colors"
-                  tabIndex={-1}
-                >
-                  <span className="material-symbols-outlined text-lg">
-                    {showPassword ? "visibility_off" : "visibility"}
-                  </span>
-                </button>
               </div>
             </div>
-            <div>
-              <label htmlFor="signup-confirm" className="block text-sm font-medium text-[#64748b] mb-1.5">
-                Confirm Password
-              </label>
-              <input
-                id="signup-confirm"
-                type={showPassword ? "text" : "password"}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Repeat your password"
-                required
-                minLength={8}
-                disabled={isLoading}
-                className="w-full px-4 py-3 bg-white border border-[#e2e8f0] rounded-lg text-[#0f172a] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all disabled:opacity-50"
-              />
+            
+            <AnimatePresence>
               {password && confirmPassword && password !== confirmPassword && (
-                <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
-                  <span className="material-symbols-outlined text-xs">error</span>
+                <motion.p 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-xs text-error font-bold flex items-center gap-1.5 ml-1"
+                >
+                  <span className="material-symbols-outlined text-sm">error</span>
                   Passwords do not match
-                </p>
+                </motion.p>
               )}
-            </div>
-            <button
+            </AnimatePresence>
+
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
+              className="w-full py-4 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-4"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
-                "Create Account"
+                <>
+                  <span>Create Account</span>
+                  <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                </>
               )}
-            </button>
+            </motion.button>
           </form>
 
+          {/* Divider */}
+          <div className="flex items-center gap-4 my-8">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-text-dim font-bold uppercase tracking-widest">or fast enroll</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          {/* Google Sign Up - Now on BOTTOM */}
+          <motion.button
+            whileHover={{ y: -2 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => googleLogin()}
+            disabled={isLoading}
+            className="w-full bg-surface-1 border border-border hover:border-border-highlight text-text-main font-bold rounded-xl flex items-center justify-center gap-3 transition-all py-3.5 px-4 mb-8 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+          >
+            {googleLoading ? (
+              <div className="w-5 h-5 border-2 border-border border-t-primary rounded-full animate-spin" />
+            ) : (
+              <>
+                <GoogleIcon />
+                <span>Sign up with Google</span>
+              </>
+            )}
+          </motion.button>
+
           {/* Sign in link */}
-          <p className="text-center text-sm text-[#64748b] mt-6">
-            Already have an account?{" "}
-            <Link href="/login" className="text-[#7c3aed] font-medium hover:underline">
-              Sign in
-            </Link>
-          </p>
+          <div className="text-center">
+            <p className="text-sm text-text-muted font-medium">
+              Already have an account?{" "}
+              <Link href="/login" className="text-primary font-bold hover:underline underline-offset-4">
+                Sign in
+              </Link>
+            </p>
+          </div>
 
           {/* Footer */}
-          <p className="text-center text-xs text-[#94a3b8] mt-8 leading-relaxed">
-            By continuing, you agree to Skillvector&apos;s{" "}
-            <span className="text-[#7c3aed] cursor-pointer hover:underline">Terms of Service</span>
-            {" "}and{" "}
-            <span className="text-[#7c3aed] cursor-pointer hover:underline">Privacy Policy</span>.
-          </p>
-        </div>
+          <div className="mt-10 text-center leading-relaxed">
+            <p className="text-[10px] text-text-dim uppercase font-bold tracking-widest">
+              By joining, you agree to our{" "}
+              <span className="text-primary cursor-pointer hover:underline">Terms</span>
+              {" "}and{" "}
+              <span className="text-primary cursor-pointer hover:underline">Privacy Policy</span>
+            </p>
+          </div>
+        </motion.div>
       </div>
 
-      {/* Right Side - Testimonial */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[#F5F5F0] flex-col justify-between p-12 xl:p-16 relative overflow-hidden">
-        {/* Documentation link */}
+      {/* Right Side - Visual / Testimonial */}
+      <div className="hidden lg:flex lg:w-1/2 bg-background flex-col justify-between p-12 xl:p-16 relative overflow-hidden">
+        {/* Animated Shapes / Background */}
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px] -mr-80 -mt-40" />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-info/5 rounded-full blur-[100px] -ml-40 -mb-20" />
+
+        {/* Top nav */}
         <div className="relative z-10 flex justify-end">
-          <Link href="/documentation" className="inline-flex items-center gap-1.5 text-sm text-[#64748b] hover:text-[#0f172a] transition-colors">
-            <span className="material-symbols-outlined text-sm">description</span>
+          <Link href="/documentation" className="inline-flex items-center gap-2 px-4 py-2 bg-surface-1 border border-border rounded-xl text-sm font-bold text-text-muted hover:text-text-main transition-all shadow-sm hover:shadow-md">
+            <span className="material-symbols-outlined text-lg">description</span>
             Documentation
           </Link>
         </div>
 
-        {/* Testimonial */}
-        <div className="relative z-10 max-w-lg">
-          <div className="text-[#7c3aed]/20 text-7xl font-serif leading-none mb-2">"</div>
-          <blockquote className="text-2xl xl:text-3xl font-medium text-[#0f172a] leading-relaxed -mt-4">
-            Skillvector helped me identify my skill gaps and land my dream job in just 3 months. The AI-powered learning paths are game-changing!
-          </blockquote>
-          <div className="flex items-center gap-3 mt-8">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#7c3aed] to-violet-400 flex items-center justify-center text-white font-semibold text-sm">
-              SK
+        {/* Testimonial Section */}
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="relative z-10 max-w-lg"
+        >
+          <div className="h-1 w-20 bg-primary mb-10 rounded-full" />
+          <div className="relative">
+            <span className="absolute -top-10 -left-6 text-primary/10 text-[120px] font-serif select-none leading-none">“</span>
+            <blockquote className="text-3xl xl:text-4xl font-extrabold text-text-main leading-tight mb-8 relative z-10">
+              SkillVector helped me identify my skill gaps and land my dream job in just 3 months. The AI-powered learning paths are <span className="text-primary">game-changing</span>.
+            </blockquote>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-violet-400 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-primary/20">
+                SK
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-success border-2 border-background rounded-full" />
             </div>
             <div>
-              <p className="font-medium text-[#0f172a]">Sarah Kim</p>
-              <p className="text-sm text-[#64748b]">Software Engineer at Google</p>
+              <p className="font-bold text-text-main text-lg tracking-tight">Sarah Kim</p>
+              <p className="text-sm text-text-muted font-medium">Software Engineer at Google</p>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Copyright */}
-        <div className="relative z-10 text-sm text-[#94a3b8]">
-          © 2025 Skillvector Inc.
+        {/* Bottom stats / Info */}
+        <div className="relative z-10 flex items-center justify-between">
+          <div className="text-sm text-text-dim font-bold uppercase tracking-widest">
+            © 2026 SKILLVECTOR INC.
+          </div>
+          <div className="flex gap-6">
+             <div className="flex flex-col">
+                <span className="text-text-main font-bold text-lg">94%</span>
+                <span className="text-[10px] text-text-dim font-bold uppercase tracking-widest">Success Rate</span>
+             </div>
+             <div className="flex flex-col">
+                <span className="text-text-main font-bold text-lg">3 MO</span>
+                <span className="text-[10px] text-text-dim font-bold uppercase tracking-widest">Avg Goal Time</span>
+             </div>
+          </div>
         </div>
       </div>
     </div>

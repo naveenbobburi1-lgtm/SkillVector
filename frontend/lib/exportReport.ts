@@ -121,7 +121,7 @@ function drawSkillTag(doc: jsPDF, text: string, x: number, y: number, color: [nu
     const tagWidth = textWidth + padding * 2;
 
     doc.setFillColor(color[0], color[1], color[2]);
-    doc.roundedRect(x, y - 5, tagWidth, 10, 2, 2, "F");
+    doc.roundedRect(x, y - 6, tagWidth, 10, 2, 2, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "normal");
     doc.text(text, x + padding, y + 1);
@@ -171,10 +171,21 @@ export function exportMarketInsightsReport(
         day: "numeric",
     });
     doc.text(dateStr, pageWidth - margin, 22, { align: "right" });
+    
+    // Dynamically truncate role text if it is too wide
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
-    doc.text(gapAnalysis.role, pageWidth - margin, 33, { align: "right" });
+    let displayRole = gapAnalysis.role || "";
+    const maxRoleWidth = 90; // enough space before hitting title
+    if (doc.getTextWidth(displayRole) > maxRoleWidth) {
+        while (displayRole.length > 0 && doc.getTextWidth(displayRole + "...") > maxRoleWidth) {
+            displayRole = displayRole.slice(0, -1);
+        }
+        displayRole += "...";
+    }
+    doc.text(displayRole, pageWidth - margin, 33, { align: "right" });
+    
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(180, 180, 220);
@@ -249,19 +260,23 @@ export function exportMarketInsightsReport(
         if (userProfile.budget_sensitivity) prefParts.push(`Budget: ${userProfile.budget_sensitivity}`);
 
         if (prefParts.length) {
-            y = ensureSpace(doc, y, 20);
+            const prefText = prefParts.join("   |   ");
+            doc.setFontSize(8);
+            const prefWrapped = doc.splitTextToSize(prefText, contentWidth - 56);
+            const blockHeight = Math.max(14, prefWrapped.length * 4 + 8);
+            y = ensureSpace(doc, y, blockHeight + 6);
+            
             doc.setFillColor(...COLORS.lightGray);
-            doc.roundedRect(margin, y, contentWidth, 14, 2, 2, "F");
+            doc.roundedRect(margin, y, contentWidth, blockHeight, 2, 2, "F");
             doc.setFontSize(8);
             doc.setFont("helvetica", "bold");
             doc.setTextColor(...COLORS.gray);
-            doc.text("Learning Preferences:", margin + 4, y + 6);
+            doc.text("Learning Preferences:", margin + 4, y + 8);
+            
             doc.setFont("helvetica", "normal");
             doc.setTextColor(...COLORS.dark);
-            const prefText = prefParts.join("   |   ");
-            const prefWrapped = doc.splitTextToSize(prefText, contentWidth - 52);
-            doc.text(prefWrapped, margin + 50, y + 6);
-            y += 18;
+            doc.text(prefWrapped, margin + 50, y + 8);
+            y += blockHeight + 6;
         }
 
         // Preferred Industries
@@ -273,16 +288,19 @@ export function exportMarketInsightsReport(
             doc.text("Preferred Industries:", margin, y + 4);
             const labelWidth = 48;
             let tagX = margin + labelWidth;
+            
             for (const ind of userProfile.preferred_industries) {
-                const tagW = drawSkillTag(doc, ind, tagX, y + 4, COLORS.primaryDark);
-                tagX += tagW;
-                if (tagX > pageWidth - margin - 20) {
+                doc.setFontSize(8);
+                const tagW = doc.getTextWidth(ind) + 11; // 8 padding + 3 gap
+                if (tagX + tagW > pageWidth - margin) {
                     tagX = margin + labelWidth;
-                    y += 12;
+                    y += 14;
                     y = ensureSpace(doc, y, 16);
                 }
+                drawSkillTag(doc, ind, tagX, y + 4, COLORS.primaryDark);
+                tagX += tagW;
             }
-            y += 14;
+            y += 16;
         }
 
         // User Skills
@@ -292,20 +310,20 @@ export function exportMarketInsightsReport(
             doc.setFont("helvetica", "bold");
             doc.setTextColor(...COLORS.dark);
             doc.text(`Your Current Skills (${userProfile.skills.length})`, margin, y + 4);
-            y += 10;
+            y += 12;
 
             let tagX = margin;
             for (const skill of userProfile.skills) {
                 const skillName = typeof skill === "object" ? skill.name : skill;
                 doc.setFontSize(8);
-                const tw = doc.getTextWidth(skillName) + 8;
-                if (tagX + tw > pageWidth - margin) {
+                const tagW = doc.getTextWidth(skillName) + 11;
+                if (tagX + tagW > pageWidth - margin) {
                     tagX = margin;
-                    y += 12;
-                    y = ensureSpace(doc, y, 14);
+                    y += 14;
+                    y = ensureSpace(doc, y, 16);
                 }
                 drawSkillTag(doc, skillName, tagX, y, COLORS.primary);
-                tagX += tw + 3;
+                tagX += tagW;
             }
             y += 18;
         }
@@ -332,7 +350,7 @@ export function exportMarketInsightsReport(
     drawKPIBox(doc, margin + (kpiBoxW + kpiGap) * 3, y, kpiBoxW, 28, "GAPS", String(missingCount),
         missingCount > 0 ? COLORS.error : COLORS.success);
 
-    y += 36;
+    y += 40;
 
     // ============================================================
     // SECTION 3a: REAL-TIME MARKET DATA (Exa)
@@ -375,18 +393,18 @@ export function exportMarketInsightsReport(
             doc.setFont("helvetica", "bold");
             doc.setTextColor(...COLORS.dark);
             doc.text(`Real-time Training Skills (Exa) — ${exaSkills.length} skills`, margin, y + 4);
-            y += 8;
+            y += 12;
             let tagX = margin;
             for (const skill of exaSkills) {
                 doc.setFontSize(8);
-                const tw = doc.getTextWidth(skill) + 8;
-                if (tagX + tw > pageWidth - margin) {
+                const tagW = doc.getTextWidth(skill) + 11;
+                if (tagX + tagW > pageWidth - margin) {
                     tagX = margin;
-                    y += 12;
-                    y = ensureSpace(doc, y, 14);
+                    y += 14;
+                    y = ensureSpace(doc, y, 16);
                 }
                 drawSkillTag(doc, skill, tagX, y, COLORS.success);
-                tagX += tw + 3;
+                tagX += tagW;
             }
             y += 18;
         }
@@ -399,18 +417,18 @@ export function exportMarketInsightsReport(
         doc.setFont("helvetica", "bold");
         doc.setTextColor(...COLORS.dark);
         doc.text(`O*NET Occupational Skills (Static) — ${gapAnalysis.onet_skills.length} skills`, margin, y + 4);
-        y += 8;
+        y += 12;
         let tagX = margin;
         for (const skill of gapAnalysis.onet_skills) {
             doc.setFontSize(8);
-            const tw = doc.getTextWidth(skill) + 8;
-            if (tagX + tw > pageWidth - margin) {
+            const tagW = doc.getTextWidth(skill) + 11;
+            if (tagX + tagW > pageWidth - margin) {
                 tagX = margin;
-                y += 12;
-                y = ensureSpace(doc, y, 14);
+                y += 14;
+                y = ensureSpace(doc, y, 16);
             }
             drawSkillTag(doc, skill, tagX, y, COLORS.primary);
-            tagX += tw + 3;
+            tagX += tagW;
         }
         y += 18;
     }
@@ -450,7 +468,7 @@ export function exportMarketInsightsReport(
         doc.setFillColor(248, 250, 252);
         const outlookLines = doc.splitTextToSize(outlook.market_outlook, contentWidth - 16);
         const blockHeight = outlookLines.length * 5 + 16;
-        y = ensureSpace(doc, y, blockHeight);
+        y = ensureSpace(doc, y, blockHeight + 10);
         doc.setFillColor(248, 250, 252);
         doc.roundedRect(margin, y, contentWidth, blockHeight, 3, 3, "F");
         // Left accent
@@ -521,7 +539,8 @@ export function exportMarketInsightsReport(
 
     // Coverage gauge + summary side by side
     y = ensureSpace(doc, y, 55);
-    drawCoverageGauge(doc, margin + 30, y + 25, coveragePercent);
+    const gaugeCenterY = y + 25;
+    drawCoverageGauge(doc, margin + 30, gaugeCenterY, coveragePercent);
 
     // Summary text next to gauge
     doc.setFontSize(9);
@@ -555,7 +574,8 @@ export function exportMarketInsightsReport(
         doc.text("Significant gaps — structured learning plan suggested.", summaryX, skillsLineY);
     }
 
-    y = skillsLineY + 12;
+    // Ensure we clear both the gauge and the text
+    y = Math.max(gaugeCenterY + 30, skillsLineY + 12);
 
     // Core Required Skills table (Exa + O*NET combined)
     if (gapAnalysis.insights.market_required_skills.length) {
