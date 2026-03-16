@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useGoogleLogin } from "@react-oauth/google";
-import { setToken, API_BASE_URL, loginUser } from "@/lib/auth";
+import { setToken, API_BASE_URL, loginUser, getToken } from "@/lib/auth";
 import { motion, AnimatePresence } from "framer-motion";
 
 function GoogleIcon() {
@@ -26,6 +26,14 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  // Auto-redirect if token exists
+  useEffect(() => {
+    const token = getToken();
+    if (token) {
+      router.push("/profile");
+    }
+  }, [router]);
 
   // Email/Password login
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -87,7 +95,8 @@ function LoginForm() {
   return (
     <div className="min-h-screen w-full flex bg-background selection:bg-primary/20">
       {/* Left Side - Login Form */}
-<div className="w-full lg:w-1/2 flex flex-col justify-center px-6 sm:px-12 lg:px-16 xl:px-24 pt-16 lg:pt-24 bg-surface-1 relative z-10 shadow-xl lg:shadow-none">        <motion.div 
+      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 sm:px-12 lg:px-16 xl:px-24 pt-16 lg:pt-24 bg-surface-1 relative z-10 shadow-xl lg:shadow-none">
+        <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
