@@ -166,7 +166,7 @@ function StageCard({
     ? TRACK_Y - NODE_R - CARD_GAP - CARD_H
     : TRACK_Y + NODE_R + CARD_GAP;
 
-  const resourceTypes = Array.from(new Set((stage.resources || []).map((r) => r.type)));
+  const resourceTypes: string[] = Array.from(new Set((stage.resources || []).map((r) => r.type as string)));
   const projectCount = (stage.projects || []).length;
 
   return (
