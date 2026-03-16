@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LearningPathResponse } from "./types";
+import { motion, AnimatePresence } from "framer-motion";
+import { LearningPathResponse, PhaseWeeklyProgress } from "./types";
 import { API_BASE_URL, getToken, removeToken } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
 import TestModal from "@/components/TestModal";
@@ -11,11 +12,42 @@ import TestResultModal from "@/components/TestResultModal";
 import AIAssistant from "@/components/AIAssistant";
 import RoadmapSnapshot from "@/components/RoadmapSnapshot";
 
+// Animated Progress Bar Component
+function AnimatedProgressBar({ completed, total }: { completed: number; total: number }) {
+  const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const [displayPercent, setDisplayPercent] = useState(0);
+  
+  useEffect(() => {
+    // Animate from 0 to target percent on mount
+    const timer = setTimeout(() => {
+      setDisplayPercent(percent);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [percent]);
+  
+  return (
+    <div className="flex items-center gap-3">
+      <div className="h-2 w-24 bg-surface-2 rounded-full overflow-hidden">
+        <motion.div 
+          className="h-full bg-success rounded-full"
+          initial={{ width: 0 }}
+          animate={{ width: `${displayPercent}%` }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+        />
+      </div>
+      <span className="text-xs font-medium text-text-muted whitespace-nowrap">
+        {completed}/{total} weeks
+      </span>
+    </div>
+  );
+}
+
 export default function LearningPathPage() {
   const router = useRouter();
   const [data, setData] = useState<LearningPathResponse | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [progress, setProgress] = useState<any[]>([]);
+  const [weeklyProgress, setWeeklyProgress] = useState<Record<number, PhaseWeeklyProgress>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"snapshot" | "detailed">("snapshot");
@@ -47,6 +79,9 @@ export default function LearningPathPage() {
           const d = await progressRes.json();
           setProgress(d.progress || []);
         }
+
+        // Fetch weekly task progress
+        await fetchWeeklyProgress();
 
         const profileRes = await fetch(`${API_BASE_URL}/user-profile`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -113,6 +148,100 @@ export default function LearningPathPage() {
       return { is_unlocked: true, is_completed: false, test_passed: false, best_score: 0 };
     }
     return found || { is_unlocked: false, is_completed: false, test_passed: false, best_score: 0 };
+  };
+
+  const fetchWeeklyProgress = async () => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/all-weekly-progress`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Convert progress_by_phase to a Record<phase_index, PhaseWeeklyProgress>
+        const progressMap: Record<number, PhaseWeeklyProgress> = {};
+        const phaseData = data.progress_by_phase || {};
+        
+        for (const [phaseIdx, tasks] of Object.entries(phaseData)) {
+          if (tasks && Array.isArray(tasks)) {
+            progressMap[Number(phaseIdx)] = {
+              phase_index: Number(phaseIdx),
+              tasks: tasks as any
+            };
+          }
+        }
+        
+        // Only update if we have data
+        if (Object.keys(progressMap).length > 0) {
+          setWeeklyProgress(progressMap);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch weekly progress:", err);
+    }
+  };
+
+  const toggleWeeklyTask = async (phaseIndex: number, weekNumber: number, isCompleted: boolean) => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/weekly-task/${phaseIndex}/${weekNumber}`, {
+        method: "PUT",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ is_completed: !isCompleted }),
+      });
+      if (res.ok) {
+        // Update local state with correct format
+        setWeeklyProgress(prev => {
+          const current = prev[phaseIndex];
+          const newIsCompleted = !isCompleted;
+          
+          if (current && current.tasks) {
+            // Update existing tasks
+            const taskIndex = current.tasks.findIndex((t: any) => t.week_number === weekNumber);
+            const newTasks = [...current.tasks];
+            if (taskIndex >= 0) {
+              newTasks[taskIndex] = { 
+                ...newTasks[taskIndex], 
+                is_completed: newIsCompleted 
+              };
+            } else {
+              newTasks.push({ 
+                week_number: weekNumber, 
+                is_completed: newIsCompleted, 
+                completed_at: null 
+              });
+            }
+            return { 
+              ...prev, 
+              [phaseIndex]: { 
+                ...current, 
+                tasks: newTasks 
+              } 
+            };
+          } else {
+            // Create new entry
+            return { 
+              ...prev, 
+              [phaseIndex]: { 
+                phase_index: phaseIndex, 
+                tasks: [{ 
+                  week_number: weekNumber, 
+                  is_completed: newIsCompleted, 
+                  completed_at: null 
+                }] 
+              } 
+            };
+          }
+        });
+      }
+    } catch (err) {
+      console.error("Failed to toggle weekly task:", err);
+    }
   };
 
   if (loading) {
@@ -353,28 +482,86 @@ export default function LearningPathPage() {
 
                     {phase.weekly_breakdown?.length > 0 && (
                       <div className="space-y-3">
-                        <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider">
-                          Week-by-Week Breakdown
-                        </h3>
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-semibold text-text-dim uppercase tracking-wider">
+                            Week-by-Week Breakdown
+                          </h3>
+                          {(() => {
+                            const phaseWeeklyData = weeklyProgress[index];
+                            const totalWeeks = phase.weekly_breakdown.length;
+                            const completedWeeks = phaseWeeklyData?.tasks?.filter((t: any) => t.is_completed === true).length || 0;
+                            return (
+                              <AnimatedProgressBar completed={completedWeeks} total={totalWeeks} />
+                            );
+                          })()}
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {phase.weekly_breakdown.map((week: any, wIndex: number) => (
-                            <div key={wIndex} className="bg-surface-1 border border-border rounded-xl p-4">
-                              <div className="flex items-center gap-2 mb-3">
-                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                                  <span className="text-sm font-bold text-primary">{week.week}</span>
+                          {phase.weekly_breakdown.map((week: any, wIndex: number) => {
+                            const phaseWeeklyData = weeklyProgress[index];
+                            const weekTask = phaseWeeklyData?.tasks?.find((t: any) => t.week_number === week.week);
+                            const isWeekCompleted = weekTask?.is_completed === true;
+                            
+                            return (
+                              <div 
+                                key={wIndex} 
+                                className={`bg-surface-1 border rounded-xl p-4 transition-all ${
+                                  isWeekCompleted 
+                                    ? "border-success/30 bg-success/5" 
+                                    : "border-border hover:border-primary/30"
+                                }`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <button
+                                    onClick={() => toggleWeeklyTask(index, week.week, isWeekCompleted)}
+                                    className={`mt-0.5 flex-shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                                      isWeekCompleted
+                                        ? "bg-success border-success text-white"
+                                        : "border-border hover:border-primary"
+                                    }`}
+                                  >
+                                    <AnimatePresence mode="wait">
+                                      {isWeekCompleted && (
+                                        <motion.span
+                                          key="check"
+                                          initial={{ scale: 0, rotate: -180 }}
+                                          animate={{ scale: 1, rotate: 0 }}
+                                          exit={{ scale: 0, rotate: 180 }}
+                                          transition={{ duration: 0.2 }}
+                                          className="material-symbols-outlined text-sm"
+                                        >
+                                          check
+                                        </motion.span>
+                                      )}
+                                    </AnimatePresence>
+                                  </button>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                                        isWeekCompleted ? "bg-success/10" : "bg-primary/10"
+                                      }`}>
+                                        <span className={`text-sm font-bold ${isWeekCompleted ? "text-success" : "text-primary"}`}>
+                                          {week.week}
+                                        </span>
+                                      </div>
+                                      <h4 className={`text-sm font-bold ${isWeekCompleted ? "text-success" : "text-text-main"}`}>
+                                        {week.focus}
+                                      </h4>
+                                    </div>
+                                    <ul className="space-y-1">
+                                      {week.learning_objectives?.slice(0, 2).map((obj: string, oIndex: number) => (
+                                        <li key={oIndex} className={`flex items-center gap-2 ${isWeekCompleted ? "text-success/70" : "text-text-muted"}`}>
+                                          <span className={`material-symbols-outlined text-sm flex-shrink-0 ${isWeekCompleted ? "text-success" : "text-primary"}`} style={{ marginTop: '0px' }}>
+                                            {isWeekCompleted ? "check_circle" : "radio_button_unchecked"}
+                                          </span>
+                                          <span className={`leading-tight ${isWeekCompleted ? "line-through" : ""}`}>{obj}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
                                 </div>
-                                <h4 className="text-sm font-bold text-text-main">{week.focus}</h4>
                               </div>
-                              <ul className="space-y-1">
-                                {week.learning_objectives?.slice(0, 2).map((obj: string, oIndex: number) => (
-                                  <li key={oIndex} className="text-xs text-text-muted flex items-start gap-1">
-                                    <span className="material-symbols-outlined text-xs text-primary mt-0.5">check</span>
-                                    <span>{obj}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}

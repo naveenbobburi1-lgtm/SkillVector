@@ -59,6 +59,25 @@ class PhaseProgress(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+
+class WeeklyTaskProgress(Base):
+    """Tracks weekly learning task completion within each phase"""
+    __tablename__ = "weekly_task_progress"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, nullable=False)
+    phase_index = Column(Integer, nullable=False)  # 0-based index of the phase
+    week_number = Column(Integer, nullable=False)  # Week number within the phase (1, 2, 3, etc.)
+    is_completed = Column(Boolean, default=False)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Unique constraint: one record per user per phase per week
+    __table_args__ = (
+        sqlalchemy.UniqueConstraint('user_id', 'phase_index', 'week_number', name='uq_user_phase_week'),
+    )
+
 class TestAttempt(Base):
     __tablename__ = "test_attempts"
     

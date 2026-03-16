@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text
 from db.database import get_db
-from db.models import UserDB, UserProfile, LearningPath, PhaseProgress, TestAttempt, ActiveTest, MarketInsightsCache
+from db.models import UserDB, UserProfile, LearningPath, PhaseProgress, TestAttempt, ActiveTest, MarketInsightsCache, WeeklyTaskProgress
 from auth import get_current_user
 from rag.retriever import clean_llm_json, retrieve_videos, retrieve_articles
 from rag.phase_query_generator import generate_phase_queries
@@ -393,6 +393,13 @@ CRITICAL CONTENT REQUIREMENTS:
     if num_phases > 0:
         from utils.test_generator import initialize_phase_progress
         initialize_phase_progress(current_user.id, num_phases, db)
+        
+        # Initialize weekly task progress for each phase
+        from utils.test_generator import initialize_weekly_task_progress
+        for phase_idx, phase in enumerate(path_json.get("learning_path", [])):
+            num_weeks = phase.get("duration_weeks", len(phase.get("weekly_breakdown", [])))
+            if num_weeks > 0:
+                initialize_weekly_task_progress(current_user.id, phase_idx, num_weeks, db)
 
     total_resources = sum(len(p.get("resources", [])) for p in path_json.get("learning_path", []))
     print(
@@ -663,4 +670,97 @@ async def add_skill_and_regenerate_path(
         "message": "Skill added and path regeneration triggered",
         "skills": normalized,
         "regenerate_path": True
+    }
+
+
+@router.get("/weekly-task-progress")
+async def get_weekly_task_progress(
+    phase_index: int,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """Get progress for all weekly tasks in a specific phase"""
+    tasks = db.query(WeeklyTaskProgress).filter(
+        WeeklyTaskProgress.user_id == current_user.id,
+        WeeklyTaskProgress.phase_index == phase_index
+    ).order_by(WeeklyTaskProgress.week_number).all()
+
+    return {
+        "phase_index": phase_index,
+        "tasks": [
+            {
+                "week_number": t.week_number,
+                "is_completed": t.is_completed,
+                "completed_at": t.completed_at.isoformat() if t.completed_at else None
+            }
+            for t in tasks
+        ]
+    }
+
+
+@router.get("/all-weekly-progress")
+async def get_all_weekly_progress(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """Get progress for all weekly tasks across all phases"""
+    tasks = db.query(WeeklyTaskProgress).filter(
+        WeeklyTaskProgress.user_id == current_user.id
+    ).all()
+
+    # Group by phase_index
+    progress_by_phase = {}
+    for t in tasks:
+        if t.phase_index not in progress_by_phase:
+            progress_by_phase[t.phase_index] = []
+        progress_by_phase[t.phase_index].append({
+            "week_number": t.week_number,
+            "is_completed": t.is_completed,
+            "completed_at": t.completed_at.isoformat() if t.completed_at else None
+        })
+
+    return {
+        "progress_by_phase": progress_by_phase
+    }
+
+
+@router.put("/weekly-task/{phase_index}/{week_number}")
+async def update_weekly_task_progress(
+    phase_index: int,
+    week_number: int,
+    request: dict,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    """Update completion status of a specific weekly task"""
+    from sqlalchemy.sql import func
+    
+    is_completed = request.get("is_completed", False)
+    
+    task = db.query(WeeklyTaskProgress).filter(
+        WeeklyTaskProgress.user_id == current_user.id,
+        WeeklyTaskProgress.phase_index == phase_index,
+        WeeklyTaskProgress.week_number == week_number
+    ).first()
+
+    if not task:
+        # Create new task progress record
+        task = WeeklyTaskProgress(
+            user_id=current_user.id,
+            phase_index=phase_index,
+            week_number=week_number,
+            is_completed=is_completed,
+            completed_at=func.now() if is_completed else None
+        )
+        db.add(task)
+    else:
+        task.is_completed = is_completed
+        task.completed_at = func.now() if is_completed else None
+
+    db.commit()
+
+    return {
+        "phase_index": phase_index,
+        "week_number": week_number,
+        "is_completed": is_completed
     }

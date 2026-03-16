@@ -2,7 +2,7 @@
 # These endpoints handle phase testing and progression
 
 from sqlalchemy.orm import Session
-from db.models import PhaseProgress
+from db.models import PhaseProgress, WeeklyTaskProgress
 from config import LLM_MODEL
 
 def generate_phase_mcqs(phase_data: dict, phase_index: int):
@@ -97,5 +97,27 @@ def initialize_phase_progress(user_id: int, num_phases: int, db: Session):
             test_passed=False
         )
         db.add(progress)
+    
+    db.commit()
+
+def initialize_weekly_task_progress(user_id: int, phase_index: int, num_weeks: int, db: Session):
+    """
+    Initialize weekly task progress for a specific phase.
+    All weeks start as uncompleted.
+    """
+    # Clear existing weekly progress for this phase
+    db.query(WeeklyTaskProgress).filter(
+        WeeklyTaskProgress.user_id == user_id,
+        WeeklyTaskProgress.phase_index == phase_index
+    ).delete()
+    
+    for week_num in range(1, num_weeks + 1):
+        task = WeeklyTaskProgress(
+            user_id=user_id,
+            phase_index=phase_index,
+            week_number=week_num,
+            is_completed=False
+        )
+        db.add(task)
     
     db.commit()
