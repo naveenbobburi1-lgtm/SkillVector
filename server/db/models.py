@@ -18,6 +18,17 @@ class UserDB(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class PasswordReset(Base):
+    """Stores OTP codes for password reset"""
+    __tablename__ = "password_resets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    otp = Column(String, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class UserProfile(Base):
     __tablename__ = "user_profiles"
 

@@ -111,3 +111,63 @@ export async function saveUserDetails(data: UserProfileData) {
     return response.json();
 }
 
+/**
+ * Request password reset OTP
+ */
+export async function requestPasswordReset(email: string) {
+    const response = await fetch(`${API_BASE_URL}/forgot-password`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to request password reset");
+    }
+
+    return response.json();
+}
+
+/**
+ * Verify OTP code
+ */
+export async function verifyOtp(email: string, otp: string) {
+    const response = await fetch(`${API_BASE_URL}/verify-otp`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, otp }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Invalid or expired OTP");
+    }
+
+    return response.json();
+}
+
+/**
+ * Reset password with OTP
+ */
+export async function resetPassword(email: string, otp: string, newPassword: string) {
+    const response = await fetch(`${API_BASE_URL}/reset-password`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, otp, new_password: newPassword }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to reset password");
+    }
+
+    return response.json();
+}
+
