@@ -301,14 +301,15 @@ export default function SignupPage() {
       </div>
 
       {/* Right Side - Visual / Testimonial */}
-      <div className="hidden lg:flex lg:w-1/2 bg-background flex-col justify-between p-12 xl:p-16 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-[var(--bg-base)] border-l border-border flex-col justify-between p-12 xl:p-16 relative overflow-hidden">
         {/* Animated Shapes / Background */}
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px] -mr-80 -mt-40" />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-info/5 rounded-full blur-[100px] -ml-40 -mb-20" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(15,14,23,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(15,14,23,0.02)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px] -mr-80 -mt-40" />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-coral/5 rounded-full blur-[100px] -ml-40 -mb-20" />
 
         {/* Top nav */}
         <div className="relative z-10 flex justify-end">
-          <Link href="/documentation" className="inline-flex items-center gap-2 px-4 py-2 bg-surface-1 border border-border rounded-xl text-sm font-bold text-text-muted hover:text-text-main transition-all shadow-sm hover:shadow-md">
+          <Link href="/documentation" className="inline-flex items-center gap-2 px-4 py-2 bg-surface-1/80 backdrop-blur-md border border-border rounded-xl text-sm font-bold text-text-muted hover:text-text-main transition-all shadow-sm hover:shadow-md">
             <span className="material-symbols-outlined text-lg">description</span>
             Documentation
           </Link>
@@ -319,43 +320,45 @@ export default function SignupPage() {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="relative z-10 max-w-lg"
+          className="relative z-10 max-w-lg glass-panel p-8 rounded-3xl border border-primary/10 shadow-2xl shadow-primary/5"
         >
-          <div className="h-1 w-20 bg-primary mb-10 rounded-full" />
+          <div className="h-1 w-10 bg-primary mb-6 rounded-full" />
           <div className="relative">
-            <span className="absolute -top-10 -left-6 text-primary/10 text-[120px] font-serif select-none leading-none">“</span>
-            <blockquote className="text-3xl xl:text-4xl font-extrabold text-text-main leading-tight mb-8 relative z-10">
-              SkillVector helped me identify my skill gaps and land my dream job in just 3 months. The AI-powered learning paths are <span className="text-primary">game-changing</span>.
+            <span className="absolute -top-8 -left-4 text-primary/10 text-[100px] font-serif select-none leading-none">“</span>
+            <blockquote className="text-xl xl:text-2xl font-bold text-text-main leading-[1.4] mb-6 relative z-10">
+              Stop scrolling static tutorials. SkillVector deeply analyzed my profile, cross-referencing O*NET standards with live Exa web data to inject a <span className="text-primary italic">pinpoint course of action</span> that accelerated my career.
             </blockquote>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 border-t border-border pt-4 mt-2">
             <div className="relative">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-violet-400 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-primary/20">
-                SK
+              <div className="w-10 h-10 rounded-xl bg-text-main flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-text-main/10">
+                MT
               </div>
-              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-success border-2 border-background rounded-full" />
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-success border-2 border-surface-1 rounded-full animate-pulse" />
             </div>
             <div>
-              <p className="font-bold text-text-main text-lg tracking-tight">Sarah Kim</p>
-              <p className="text-sm text-text-muted font-medium">Software Engineer at Google</p>
+              <p className="font-bold text-text-main text-lg tracking-tight">Marcus T.</p>
+              <p className="text-sm text-text-muted font-medium font-mono">Senior Systems Engineer</p>
             </div>
           </div>
         </motion.div>
 
         {/* Bottom stats / Info */}
         <div className="relative z-10 flex items-center justify-between">
-          <div className="text-sm text-text-dim font-bold uppercase tracking-widest">
-            © 2026 SKILLVECTOR INC.
+          <div className="text-sm text-text-dim font-bold uppercase tracking-widest flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-primary animate-pulseRing"></span>
+            Intelligence Core Online
           </div>
-          <div className="flex gap-6">
-             <div className="flex flex-col">
-                <span className="text-text-main font-bold text-lg">94%</span>
-                <span className="text-[10px] text-text-dim font-bold uppercase tracking-widest">Success Rate</span>
+          <div className="flex gap-8">
+             <div className="flex flex-col text-right">
+                <span className="text-text-main font-bold text-xl font-mono">94%</span>
+                <span className="text-[10px] text-text-dim font-bold uppercase tracking-widest mt-1">Placement Fit</span>
              </div>
-             <div className="flex flex-col">
-                <span className="text-text-main font-bold text-lg">3 MO</span>
-                <span className="text-[10px] text-text-dim font-bold uppercase tracking-widest">Avg Goal Time</span>
+             <div className="w-px h-10 bg-border"></div>
+             <div className="flex flex-col text-right">
+                <span className="text-primary font-bold text-xl font-mono">+340%</span>
+                <span className="text-[10px] text-text-dim font-bold uppercase tracking-widest mt-1">Learning ROI</span>
              </div>
           </div>
         </div>

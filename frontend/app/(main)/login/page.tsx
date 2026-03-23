@@ -246,14 +246,15 @@ function LoginForm() {
       </div>
 
       {/* Right Side - Visual / Testimonial */}
-      <div className="hidden lg:flex lg:w-1/2 bg-background flex-col justify-between p-12 xl:p-16 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-[var(--bg-base)] border-l border-border flex-col justify-between p-12 xl:p-16 relative overflow-hidden">
         {/* Animated Shapes / Background */}
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[100px] -mr-64 -mt-32" />
-        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-info/5 rounded-full blur-[80px] -ml-32 -mb-16" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(15,14,23,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(15,14,23,0.02)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[100px] -mr-64 -mt-32" />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-sage/5 rounded-full blur-[80px] -ml-32 -mb-20" />
 
         {/* Top nav */}
         <div className="relative z-10 flex justify-end">
-          <Link href="/documentation" className="inline-flex items-center gap-2 px-4 py-2 bg-surface-1 border border-border rounded-xl text-sm font-bold text-text-muted hover:text-text-main transition-all shadow-sm hover:shadow-md">
+          <Link href="/documentation" className="inline-flex items-center gap-2 px-4 py-2 bg-surface-1/80 backdrop-blur-md border border-border rounded-xl text-sm font-bold text-text-muted hover:text-text-main transition-all shadow-sm hover:shadow-md">
             <span className="material-symbols-outlined text-lg">description</span>
             Documentation
           </Link>
@@ -264,43 +265,45 @@ function LoginForm() {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="relative z-10 max-w-lg"
+          className="relative z-10 max-w-lg glass-panel p-8 rounded-3xl border border-primary/10 shadow-2xl shadow-primary/5"
         >
-          <div className="h-1 w-20 bg-primary mb-10 rounded-full" />
+          <div className="h-1 w-10 bg-primary mb-6 rounded-full" />
           <div className="relative">
-            <span className="absolute -top-10 -left-6 text-primary/10 text-[120px] font-serif select-none leading-none">“</span>
-            <blockquote className="text-3xl xl:text-4xl font-extrabold text-text-main leading-tight mb-8 relative z-10">
-              Y&apos;all <span className="text-primary">@skillvector</span> + AI learning is amazing! Barely an hour in and I have a complete career roadmap.
+            <span className="absolute -top-8 -left-4 text-primary/10 text-[100px] font-serif select-none leading-none">“</span>
+            <blockquote className="text-xl xl:text-2xl font-bold text-text-main leading-[1.4] mb-6 relative z-10">
+              The dynamic RAG pipeline mapped my skills against real-time Exa live web data and verified O*NET benchmarks, generating a pinpoint roadmap that closed my knowledge gaps instantly.
             </blockquote>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 border-t border-border pt-4 mt-2">
             <div className="relative">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-violet-400 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-primary/20">
-                JD
+              <div className="w-10 h-10 rounded-xl bg-text-main flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-text-main/10">
+                EV
               </div>
-              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-success border-2 border-background rounded-full" />
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-success border-2 border-surface-1 rounded-full animate-pulse" />
             </div>
             <div>
-              <p className="font-bold text-text-main text-lg tracking-tight">Justin Juno</p>
-              <p className="text-sm text-text-muted font-medium">Senior Product Developer</p>
+              <p className="font-bold text-text-main text-lg tracking-tight">Elena V.</p>
+              <p className="text-sm text-text-muted font-medium font-mono">Lead Platform Architect</p>
             </div>
           </div>
         </motion.div>
 
         {/* Bottom stats / Info */}
         <div className="relative z-10 flex items-center justify-between">
-          <div className="text-sm text-text-dim font-bold uppercase tracking-widest">
-            © 2026 SKILLVECTOR INC.
+          <div className="text-sm text-text-dim font-bold uppercase tracking-widest flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-primary animate-pulseRing"></span>
+            Intelligence Core Online
           </div>
-          <div className="flex gap-6">
-             <div className="flex flex-col">
-                <span className="text-text-main font-bold text-lg">12K+</span>
-                <span className="text-[10px] text-text-dim font-bold uppercase tracking-widest">Active Paths</span>
+          <div className="flex gap-8">
+             <div className="flex flex-col text-right">
+                <span className="text-text-main font-bold text-xl font-mono">1.2B+</span>
+                <span className="text-[10px] text-text-dim font-bold uppercase tracking-widest mt-1">Data Points</span>
              </div>
-             <div className="flex flex-col">
-                <span className="text-text-main font-bold text-lg">94%</span>
-                <span className="text-[10px] text-text-dim font-bold uppercase tracking-widest">Success Rate</span>
+             <div className="w-px h-10 bg-border"></div>
+             <div className="flex flex-col text-right">
+                <span className="text-primary font-bold text-xl font-mono">LIVE</span>
+                <span className="text-[10px] text-text-dim font-bold uppercase tracking-widest mt-1">Market Sync</span>
              </div>
           </div>
         </div>

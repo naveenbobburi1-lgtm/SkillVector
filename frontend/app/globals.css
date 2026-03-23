@@ -39,17 +39,17 @@
   --shadow-accent: 0 8px 32px rgba(79,63,240,0.25);
   --shadow-accent-lg: 0 16px 48px rgba(79,63,240,0.30);
 
-  /* ── Typography Scale ── */
-  --text-xs:   clamp(0.65rem,  1vw,   0.75rem);
-  --text-sm:   clamp(0.8rem,   1.2vw, 0.875rem);
-  --text-base: clamp(0.95rem,  1.5vw, 1.05rem);
-  --text-lg:   clamp(1.1rem,   2vw,   1.25rem);
-  --text-xl:   clamp(1.3rem,   2.5vw, 1.5rem);
-  --text-2xl:  clamp(1.6rem,   3vw,   2rem);
-  --text-3xl:  clamp(2rem,     4vw,   2.75rem);
-  --text-4xl:  clamp(2.75rem,  5.5vw, 4rem);
-  --text-5xl:  clamp(3.5rem,   7.5vw, 5.5rem);
-  --text-hero: clamp(4rem,     10vw,  8rem);
+  /* ── Typography Scale (Boosted) ── */
+  --text-xs:   clamp(0.7rem,   1.2vw, 0.85rem);
+  --text-sm:   clamp(0.9rem,   1.4vw, 1rem);
+  --text-base: clamp(1.05rem,  1.6vw, 1.15rem);
+  --text-lg:   clamp(1.2rem,   2vw,   1.4rem);
+  --text-xl:   clamp(1.4rem,   2.5vw, 1.75rem);
+  --text-2xl:  clamp(1.8rem,   3.5vw, 2.25rem);
+  --text-3xl:  clamp(2.25rem,  4.5vw, 3rem);
+  --text-4xl:  clamp(3rem,     6vw,   4.5rem);
+  --text-5xl:  clamp(4rem,     8vw,   6rem);
+  --text-hero: clamp(4.5rem,   11vw,  9rem);
 
   /* ── Spacing ── */
   --section-y:  clamp(5rem, 10vw, 9rem);
@@ -165,20 +165,24 @@ img, video { max-width: 100%; display: block; }
 
 /* Phase 3: Global Animation Keyframes */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(28px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(40px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes blurIn {
+  from { opacity: 0; transform: translateY(30px) scale(0.95); filter: blur(20px); }
+  to   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
 }
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from { opacity: 0; filter: blur(10px); }
+  to   { opacity: 1; filter: blur(0); }
 }
 @keyframes fadeRight {
-  from { opacity: 0; transform: translateX(-20px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateX(-30px); filter: blur(15px); }
+  to   { opacity: 1; transform: translateX(0); filter: blur(0); }
 }
 @keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.94); }
-  to   { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: scale(0.90) translateY(20px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 @keyframes marquee {
   from { transform: translateX(0); }
@@ -224,19 +228,20 @@ img, video { max-width: 100%; display: block; }
 /* Scroll reveal base */
 [data-reveal] {
   opacity: 0;
-  transform: translateY(32px);
-  transition: opacity 0.75s var(--ease-out-expo), transform 0.75s var(--ease-out-expo);
+  transform: translateY(40px) scale(0.98);
+  filter: blur(12px);
+  transition: opacity 0.9s var(--ease-out-expo), transform 0.9s var(--ease-out-expo), filter 0.9s var(--ease-out-expo);
 }
 [data-reveal="right"] {
-  transform: translateX(-24px);
+  transform: translateX(-30px);
 }
 [data-reveal="scale"] {
-  transform: scale(0.95);
-  opacity: 0;
+  transform: scale(0.90) translateY(20px);
 }
 [data-reveal].visible {
   opacity: 1;
   transform: none;
+  filter: blur(0);
 }
 [data-reveal][data-delay="1"] { transition-delay: 0.08s; }
 [data-reveal][data-delay="2"] { transition-delay: 0.16s; }

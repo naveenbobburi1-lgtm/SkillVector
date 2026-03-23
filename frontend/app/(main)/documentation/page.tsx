@@ -88,7 +88,7 @@ const sections: DocSection[] = [
         content: (
           <div className="space-y-4">
             <p>Built with cutting-edge technologies that favor safety, scalability, and type integrity.</p>
-            <TechnicalTable 
+            <TechnicalTable
               headers={["Layer", "Technology", "Role"]}
               rows={[
                 ["Frontend", "Next.js 16 / React 19", "Server-Side Rendering & Client Interactivity"],
@@ -143,7 +143,7 @@ const sections: DocSection[] = [
         content: (
           <div className="space-y-4">
             <p>SkillVector uses `pgvector` with HNSW (Hierarchical Navigable Small Worlds) indexes to ensure search performance doesn't degrade as the cache grows.</p>
-            <CodeBlock 
+            <CodeBlock
               language="sql"
               code={`-- L1 Semantic Lookup in PostgreSQL
 SELECT sources
@@ -169,7 +169,7 @@ LIMIT 10;`}
         content: (
           <div className="space-y-4">
             <p>SkillVector maps user goals to the U.S. Department of Labor's O*NET database (Standard Occupational Classification). This provides a baseline of verified skills, knowledge, and activities for over 1,000 occupations.</p>
-            <TechnicalTable 
+            <TechnicalTable
               headers={["O*NET Dataset", "Application in SkillVector"]}
               rows={[
                 ["Technology Skills", "Hot Technology & In Demand skill extraction"],
@@ -223,7 +223,7 @@ LIMIT 10;`}
         content: (
           <div className="space-y-4">
             <p>Using PostgreSQL advisory locks to manage expensive AI operations:</p>
-            <CodeBlock 
+            <CodeBlock
               language="python"
               code={`# server/routes/learning_path.py
 lock_acquired = db.execute(
@@ -301,15 +301,13 @@ export default function DocumentationPage() {
                             setActiveSection(section.id);
                             setActiveItem(item.id);
                           }}
-                          className={`w-full text-left text-sm px-4 py-2.5 rounded-xl transition-all duration-200 border-l-2 flex items-center gap-3 ${
-                            activeItem === item.id
+                          className={`w-full text-left text-sm px-4 py-2.5 rounded-xl transition-all duration-200 border-l-2 flex items-center gap-3 ${activeItem === item.id
                               ? "bg-primary/5 text-primary border-primary font-bold shadow-sm"
                               : "text-text-muted border-transparent hover:bg-surface-2 hover:text-text-main"
-                          }`}
+                            }`}
                         >
-                          <span className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                            activeItem === item.id ? "bg-primary" : "bg-text-dim/20"
-                          }`}></span>
+                          <span className={`w-1.5 h-1.5 rounded-full transition-colors ${activeItem === item.id ? "bg-primary" : "bg-text-dim/20"
+                            }`}></span>
                           {item.title}
                         </button>
                       </li>
@@ -325,14 +323,14 @@ export default function DocumentationPage() {
             {currentItem && (
               <article className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="flex items-center gap-2 mb-4">
-                   <span className="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider rounded">System Documentation</span>
-                   <span className="text-text-dim text-xs">v1.2.4</span>
+                  <span className="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider rounded">System Documentation</span>
+                  <span className="text-text-dim text-xs">v1.2.4</span>
                 </div>
-                
+
                 <h1 className="text-4xl lg:text-5xl font-extrabold text-text-main tracking-tight mb-8">
                   {currentItem.title}
                 </h1>
-                
+
                 <div className="text-text-muted text-lg leading-relaxed space-y-6">
                   {currentItem.content}
                 </div>
@@ -395,7 +393,7 @@ export default function DocumentationPage() {
               <div className="space-y-4">
                 <h4 className="text-xs font-bold text-text-dim uppercase tracking-[0.2em] px-2">Support Channels</h4>
                 <div className="space-y-2">
-                  <Link href="mailto:dev@skillvector.io" className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl group hover:bg-primary/5 transition-all">
+                  <Link href="mailto:pavanvenkatanagamanoj@gmail.com" className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl group hover:bg-primary/5 transition-all">
                     <div className="flex items-center gap-3">
                       <span className="material-symbols-outlined text-text-dim group-hover:text-primary transition-colors">mail</span>
                       <span className="text-sm font-medium text-text-main">Email Dev</span>

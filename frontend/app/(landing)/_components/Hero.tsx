@@ -42,7 +42,7 @@ export function Hero() {
         {/* Eyebrow Tag */}
         <div 
           className="inline-flex items-center gap-2 px-[0.8rem] py-[0.3rem] rounded-[100px] bg-[var(--accent-light)] text-[var(--accent)] font-mono text-[var(--text-xs)] uppercase tracking-[0.15em] mb-4"
-          style={{ opacity: 0, animation: "fadeUp 0.7s var(--ease-out-expo) 0.1s forwards" }}
+          style={{ opacity: 0, animation: "blurIn 1s var(--ease-out-expo) 0.1s forwards" }}
         >
           <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" style={{ animation: "pulseRing 1.5s ease-out infinite" }} />
           Production RAG Pipeline
@@ -52,7 +52,7 @@ export function Hero() {
         <h1 
           className="font-display font-[800] text-[var(--text-hero)] text-[var(--text-primary)] tracking-[-0.04em] leading-[0.95] my-5 uppercase"
         >
-          <span className="block" style={{ opacity: 0, animation: "fadeUp 0.8s var(--ease-out-expo) 0.25s forwards" }}>
+          <span className="block" style={{ opacity: 0, animation: "blurIn 1.2s var(--ease-out-expo) 0.25s forwards" }}>
             AI-POWERED CAREER
           </span>
           <span 
@@ -63,7 +63,7 @@ export function Hero() {
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
               opacity: 0,
-              animation: "fadeUp 0.8s var(--ease-out-expo) 0.4s forwards" 
+              animation: "blurIn 1.2s var(--ease-out-expo) 0.4s forwards" 
             }}
           >
             INTELLIGENCE
@@ -73,7 +73,7 @@ export function Hero() {
         {/* Subhead */}
         <p 
           className="text-[var(--text-lg)] text-[var(--text-secondary)] font-body font-[400] leading-[1.65] max-w-[480px] mb-10"
-          style={{ opacity: 0, animation: "fadeUp 0.8s var(--ease-out-expo) 0.6s forwards" }}
+          style={{ opacity: 0, animation: "blurIn 1.2s var(--ease-out-expo) 0.6s forwards" }}
         >
           Stop relying on static course lists. Analyze your skills, match against real O*NET labor market data, and generate a dynamic, deeply personalized learning roadmap.
         </p>
@@ -81,7 +81,7 @@ export function Hero() {
         {/* CTAs */}
         <div 
           className="flex flex-wrap items-center gap-4 mb-10 w-full"
-          style={{ opacity: 0, animation: "fadeUp 0.8s var(--ease-out-expo) 0.8s forwards" }}
+          style={{ opacity: 0, animation: "blurIn 1.2s var(--ease-out-expo) 0.8s forwards" }}
         >
           {/* Primary Button */}
           <Link 
@@ -108,7 +108,7 @@ export function Hero() {
 
         {/* Trust signal row */}
         <div className="flex items-center gap-[1.25rem] font-mono text-[var(--text-xs)] text-[var(--text-muted)] mt-2 opacity-0"
-          style={{ animation: "fadeIn 1s ease 1.1s forwards" }}>
+          style={{ animation: "fadeIn 1.5s ease 1.2s forwards" }}>
           <span>No credit card</span>
           <span className="w-[3px] h-[3px] rounded-full bg-[var(--text-muted)]/40" />
           <span>Free tier</span>
@@ -120,7 +120,7 @@ export function Hero() {
       {/* RIGHT COLUMN: ORBITAL VISUAL */}
       <div 
         className="relative flex items-center justify-center h-full w-full hidden md:flex opacity-0"
-        style={{ animation: "scaleIn 0.9s var(--ease-out-expo) 0.4s forwards" }}
+        style={{ animation: "blurIn 1.4s var(--ease-out-expo) 0.6s forwards" }}
       >
         <div 
           ref={parallax.targetRef}
