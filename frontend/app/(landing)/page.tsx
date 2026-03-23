@@ -1,5 +1,6 @@
 import { Nav } from "./_components/Nav";
 import { Hero } from "./_components/Hero";
+import { HowItWorks } from "./_components/HowItWorks";
 import { StatsBar } from "./_components/StatsBar";
 import { Marquee } from "./_components/Marquee";
 import { Features } from "./_components/Features";
@@ -33,6 +34,7 @@ export default function LandingPage() {
       <Nav />
       <Hero />
       <StatsBar />
+      <HowItWorks />
       <Marquee />
       <Features />
       <Manifesto />

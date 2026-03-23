@@ -58,8 +58,8 @@ const FEATURES = [
     )
   },
   {
-    title: "SkillUniverse 3D",
-    desc: "Immersive WebGL landing experience built on React Three Fiber and Framer Motion storytelling.",
+    title: "Exa Hybrid Neural Retrieval",
+    desc: "A neural search layer combining high-fidelity Web Search with context-aware Vector DB, extracting the freshest skill data continuously.",
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="transition-colors duration-300">
         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
