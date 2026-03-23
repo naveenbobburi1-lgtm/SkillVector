@@ -44,7 +44,7 @@ function StatItem({ stat, index }: { stat: any, index: number }) {
 export function StatsBar() {
   return (
     <section className="bg-[var(--bg-surface)] border-y border-[var(--bg-border)] p-0">
-      <div className="grid grid-cols-2 md:grid-cols-4 w-full">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 w-full">
         {STATS.map((stat, idx) => (
           <StatItem key={idx} stat={stat} index={idx} />
         ))}

@@ -22,7 +22,7 @@ export function Footer() {
           </p>
         </div>
 
-        <div className="flex gap-8 font-mono text-[var(--text-xs)] uppercase tracking-wider text-[var(--text-secondary)]">
+        <div className="flex flex-wrap justify-center md:justify-end gap-x-6 gap-y-4 font-mono text-[var(--text-xs)] uppercase tracking-wider text-[var(--text-secondary)]">
           <Link href="#features" {...cursorEvents} className="hover:text-[var(--accent)] transition-colors">Features</Link>
           <Link href="#pricing" {...cursorEvents} className="hover:text-[var(--accent)] transition-colors">Pricing</Link>
           <Link href="/terms" {...cursorEvents} className="hover:text-[var(--accent)] transition-colors">Terms</Link>

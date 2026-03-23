@@ -12,14 +12,12 @@ export function useParallax(strength = 14) {
     const rect = section.getBoundingClientRect()
     const dx = ((e.clientX - rect.left) / rect.width  - 0.5) * 2
     const dy = ((e.clientY - rect.top)  / rect.height - 0.5) * 2
-    target.style.transform =
-      `translate(calc(-50% + ${dx * strength}px), ` +
-      `calc(-50% + ${dy * strength}px))`
+    target.style.transform = `translate(${dx * strength}px, ${dy * strength}px)`
   }, [strength])
 
   const onMouseLeave = useCallback(() => {
     if (targetRef.current) {
-      targetRef.current.style.transform = "translate(-50%, -50%)"
+      targetRef.current.style.transform = "translate(0px, 0px)"
       targetRef.current.style.transition =
         "transform 0.8s var(--ease-out-expo)"
     }

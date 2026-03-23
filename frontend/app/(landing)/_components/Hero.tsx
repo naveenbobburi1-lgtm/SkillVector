@@ -139,20 +139,16 @@ export function Hero() {
       {/* Floating Elements that respond to Parallax */}
       <div 
         ref={parallax.targetRef}
-        className="absolute inset-0 pointer-events-none opacity-0 hidden md:block"
-        style={{ animation: "fadeIn 2s ease 1s forwards" }}
+        className="absolute inset-0 pointer-events-none z-10"
       >
-        <div className="absolute top-[20%] left-[10%] bg-[var(--bg-surface)] border border-[var(--bg-border)] rounded-[8px] py-[0.5rem] px-[0.85rem] shadow-[var(--shadow-sm)] font-mono text-[var(--text-xs)] text-[var(--text-primary)] pointer-events-auto shadow-[0_4px_20px_rgba(0,0,0,0.05)]" style={{ animation: "float 6s ease-in-out infinite 0.5s" }}>
+        <div className="absolute top-[12%] sm:top-[20%] left-[5%] sm:left-[10%] bg-[var(--bg-surface)] border border-[var(--bg-border)] rounded-[8px] py-[0.4rem] sm:py-[0.5rem] px-[0.6rem] sm:px-[0.85rem] shadow-[var(--shadow-sm)] font-mono text-[10px] sm:text-[var(--text-xs)] text-[var(--text-primary)] pointer-events-auto shadow-[0_4px_20px_rgba(0,0,0,0.05)]" style={{ animation: "float 6s ease-in-out infinite 0.5s" }}>
           ⚡ 2× faster
         </div>
-        <div className="absolute top-[25%] right-[15%] bg-[var(--accent-light)] border border-[var(--accent)] border-opacity-20 rounded-[8px] py-[0.5rem] px-[0.85rem] font-mono text-[var(--text-xs)] text-[var(--accent)] pointer-events-auto shadow-[0_4px_20px_rgba(79,63,240,0.15)]" style={{ animation: "float 8s ease-in-out infinite 1s" }}>
+        <div className="absolute top-[15%] sm:top-[25%] right-[5%] sm:right-[15%] bg-[var(--accent-light)] border border-[var(--accent)] border-opacity-20 rounded-[8px] py-[0.4rem] sm:py-[0.5rem] px-[0.6rem] sm:px-[0.85rem] font-mono text-[10px] sm:text-[var(--text-xs)] text-[var(--accent)] pointer-events-auto shadow-[0_4px_20px_rgba(79,63,240,0.15)]" style={{ animation: "float 8s ease-in-out infinite 1s" }}>
           ✦ 98% accuracy
         </div>
-        <div className="absolute bottom-[30%] left-[18%] bg-[var(--sage-light)] border border-[var(--sage)] border-opacity-20 rounded-[8px] py-[0.5rem] px-[0.85rem] font-mono text-[var(--text-xs)] text-[var(--sage)] pointer-events-auto shadow-[0_4px_20px_rgba(46,196,160,0.15)]" style={{ animation: "float 7s ease-in-out infinite 1.5s" }}>
+        <div className="absolute bottom-[20%] sm:bottom-[30%] left-[8%] sm:left-[18%] bg-[var(--sage-light)] border border-[var(--sage)] border-opacity-20 rounded-[8px] py-[0.4rem] sm:py-[0.5rem] px-[0.6rem] sm:px-[0.85rem] font-mono text-[10px] sm:text-[var(--text-xs)] text-[var(--sage)] pointer-events-auto shadow-[0_4px_20px_rgba(46,196,160,0.15)]" style={{ animation: "float 7s ease-in-out infinite 1.5s" }}>
           ↗ +340% ROI
-        </div>
-        <div className="absolute bottom-[25%] right-[12%] bg-[var(--bg-surface)] border border-[var(--bg-border)] rounded-[8px] py-[0.5rem] px-[0.85rem] shadow-[var(--shadow-sm)] font-mono text-[var(--text-xs)] text-[var(--text-primary)] pointer-events-auto shadow-[0_4px_20px_rgba(0,0,0,0.05)]" style={{ animation: "float 6.5s ease-in-out infinite 0.2s" }}>
-           150K+ Paths Built
         </div>
       </div>
 
