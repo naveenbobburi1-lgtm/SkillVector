@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LearningPathStage, MetaData } from "../app/learning-path/types";
+import { LearningPathStage, MetaData } from "../app/(main)/learning-path/types";
 
 interface Props {
   stages: LearningPathStage[];
@@ -237,7 +237,7 @@ function StageCard({
     : TRACK_Y + NODE_R + CARD_GAP;
 
   const resourceTypes: string[] = Array.from(
-    new Set((stage.resources || []).map((r) => r.type as string))
+    new Set((stage.resources || []).map((r: any) => r.type as string))
   );
   const projectCount = stage.projects?.length ?? 0;
 
@@ -298,7 +298,7 @@ function StageCard({
           {/* Focus tags */}
           {stage.focus && stage.focus.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {stage.focus.slice(0, 2).map((f, fi) => (
+              {stage.focus.slice(0, 2).map((f: string, fi: number) => (
                 <span
                   key={fi}
                   className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.11em]"
@@ -348,7 +348,7 @@ function StageCard({
                 Key Topics
               </p>
               <ul className="space-y-1">
-                {stage.topics.slice(0, 4).map((topic, ti) => (
+                {stage.topics.slice(0, 4).map((topic: string, ti: number) => (
                   <li key={ti} className="flex items-start gap-1.5">
                     <svg width="8" height="8" viewBox="0 0 8 8" className="mt-[3.5px] flex-shrink-0">
                       <circle cx="4" cy="4" r="2.5" fill={ac.primary} opacity="0.6" />
@@ -379,7 +379,7 @@ function StageCard({
                 Skills
               </p>
               <div className="flex flex-wrap gap-1">
-                {stage.skills.slice(0, 5).map((skill, si) => (
+                {stage.skills.slice(0, 5).map((skill: string, si: number) => (
                   <span
                     key={si}
                     className="px-1.5 py-0.5 rounded text-[9.5px] font-semibold"

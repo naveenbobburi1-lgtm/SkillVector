@@ -1,0 +1,8 @@
+﻿components/RoadmapSnapshot.tsx(5,45): error TS2307: Cannot find module '../app/learning-path/types' or its corresponding type declarations.
+components/RoadmapSnapshot.tsx(240,42): error TS7006: Parameter 'r' implicitly has an 'any' type.
+components/RoadmapSnapshot.tsx(301,45): error TS7006: Parameter 'f' implicitly has an 'any' type.
+components/RoadmapSnapshot.tsx(301,48): error TS7006: Parameter 'fi' implicitly has an 'any' type.
+components/RoadmapSnapshot.tsx(351,48): error TS7006: Parameter 'topic' implicitly has an 'any' type.
+components/RoadmapSnapshot.tsx(351,55): error TS7006: Parameter 'ti' implicitly has an 'any' type.
+components/RoadmapSnapshot.tsx(382,48): error TS7006: Parameter 'skill' implicitly has an 'any' type.
+components/RoadmapSnapshot.tsx(382,55): error TS7006: Parameter 'si' implicitly has an 'any' type.
