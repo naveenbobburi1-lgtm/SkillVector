@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getUserProfile, API_BASE_URL, getToken } from "@/lib/auth";
+import { getMarketOutlook } from "@/lib/market";
 import Navbar from "@/components/Navbar";
 import AddSkillModal from "@/components/AddSkillModal";
 
@@ -19,6 +20,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
   const [analysis, setAnalysis] = useState<any>(null);
+  const [outlook, setOutlook] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showAddSkillModal, setShowAddSkillModal] = useState(false);
 
@@ -37,6 +39,9 @@ export default function ProfilePage() {
           return;
         }
         setProfile(data);
+
+        // Fetch Market Outlook (non-blocking)
+        getMarketOutlook().then(setOutlook).catch(e => console.warn("Failed to fetch outlook:", e));
 
         // Fetch Dynamic Analysis (non-blocking - page works without it)
         try {
@@ -167,10 +172,10 @@ export default function ProfilePage() {
             </div>
 
             <div className="glass-panel p-5 rounded-3xl flex-1 flex flex-col justify-center">
-              <span className="text-xs font-bold text-text-dim uppercase tracking-wider mb-2">Income Target</span>
-              <div className="text-3xl font-bold text-text-main">{profile?.expected_income || "--"}</div>
+              <span className="text-xs font-bold text-text-dim uppercase tracking-wider mb-2">Avg Market Salary</span>
+              <div className="text-3xl font-bold text-text-main line-clamp-1">{outlook?.realtime?.average_salary || outlook?.salary_insight || "--"}</div>
               <div className="w-full bg-surface-2 h-1.5 rounded-full mt-3 overflow-hidden">
-                <div className="w-[40%] h-full bg-success rounded-full"></div>
+                <div className="w-[100%] h-full bg-success rounded-full opacity-50"></div>
               </div>
             </div>
           </div>

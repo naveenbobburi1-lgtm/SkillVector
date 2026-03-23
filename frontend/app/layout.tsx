@@ -1,17 +1,29 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Syne, DM_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import GoogleAuthWrapper from "@/components/GoogleAuthWrapper";
-import Footer from "@/components/Footer";
 
-const inter = Inter({
-  variable: "--font-inter",
+const syne = Syne({
   subsets: ["latin"],
+  weight: ["400", "600", "700", "800"],
+  variable: "--font-display",
+});
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+  variable: "--font-body",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono",
 });
 
 export const metadata: Metadata = {
-  title: "Skillvector | AI Learning Paths",
-  description: "Accelerate your career with personalized AI learning paths.",
+  title: "SkillVector",
+  description: "AI-powered career intelligence generating dynamic, personalized learning roadmaps using real O*NET data.",
 };
 
 export default function RootLayout({
@@ -20,20 +32,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${syne.variable} ${dmSans.variable} ${jetbrainsMono.variable}`}>
       <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
-          rel="stylesheet"
-        />
+        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
       </head>
-      <body
-        className={`${inter.variable} antialiased bg-background text-text-main min-h-screen selection:bg-primary selection:text-white`}
-      >
-        <GoogleAuthWrapper>
-          {children}
-          <Footer />
-        </GoogleAuthWrapper>
+      <body>
+        <GoogleAuthWrapper>{children}</GoogleAuthWrapper>
       </body>
     </html>
   );

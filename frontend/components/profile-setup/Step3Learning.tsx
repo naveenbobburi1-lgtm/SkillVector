@@ -79,7 +79,7 @@ export default function Step3Learning({ data, updateData }: StepProps) {
                                 min="1"
                                 max="3"
                                 step="1"
-                                className="w-full accent-primary h-3 bg-surface-3 rounded-lg appearance-none cursor-pointer focus:outline-primary/50"
+                                className="w-full accent-primary h-3 bg-border rounded-lg cursor-pointer focus:outline-primary/50"
                                 onChange={(e) => {
                                     const val = parseInt(e.target.value);
                                     let hours = "10 - 20";
@@ -109,10 +109,57 @@ export default function Step3Learning({ data, updateData }: StepProps) {
                             >
                                 <option value="" disabled>Select Preferred Language</option>
                                 <option value="English">English</option>
-                                <option value="Hindi">Hindi</option>
-                                <option value="Kannada">Kannada</option>
-                                <option value="Telugu">Telugu</option>
-                                <option value="Tamil">Tamil</option>
+                                <optgroup label="Indian Languages">
+                                    <option value="Hindi">Hindi</option>
+                                    <option value="Telugu">Telugu</option>
+                                    <option value="Tamil">Tamil</option>
+                                    <option value="Kannada">Kannada</option>
+                                    <option value="Bengali">Bengali</option>
+                                    <option value="Marathi">Marathi</option>
+                                    <option value="Gujarati">Gujarati</option>
+                                    <option value="Malayalam">Malayalam</option>
+                                    <option value="Punjabi">Punjabi</option>
+                                    <option value="Odia">Odia</option>
+                                    <option value="Urdu">Urdu</option>
+                                    <option value="Assamese">Assamese</option>
+                                </optgroup>
+                                <optgroup label="European Languages">
+                                    <option value="Spanish">Spanish</option>
+                                    <option value="French">French</option>
+                                    <option value="German">German</option>
+                                    <option value="Portuguese">Portuguese</option>
+                                    <option value="Italian">Italian</option>
+                                    <option value="Dutch">Dutch</option>
+                                    <option value="Russian">Russian</option>
+                                    <option value="Polish">Polish</option>
+                                    <option value="Turkish">Turkish</option>
+                                    <option value="Greek">Greek</option>
+                                    <option value="Swedish">Swedish</option>
+                                    <option value="Norwegian">Norwegian</option>
+                                    <option value="Danish">Danish</option>
+                                    <option value="Finnish">Finnish</option>
+                                    <option value="Czech">Czech</option>
+                                    <option value="Romanian">Romanian</option>
+                                    <option value="Hungarian">Hungarian</option>
+                                    <option value="Ukrainian">Ukrainian</option>
+                                </optgroup>
+                                <optgroup label="Asian Languages">
+                                    <option value="Japanese">Japanese</option>
+                                    <option value="Korean">Korean</option>
+                                    <option value="Chinese">Chinese (Mandarin)</option>
+                                    <option value="Thai">Thai</option>
+                                    <option value="Vietnamese">Vietnamese</option>
+                                    <option value="Indonesian">Indonesian</option>
+                                    <option value="Malay">Malay</option>
+                                    <option value="Filipino">Filipino (Tagalog)</option>
+                                </optgroup>
+                                <optgroup label="Middle Eastern & African">
+                                    <option value="Arabic">Arabic</option>
+                                    <option value="Persian">Persian (Farsi)</option>
+                                    <option value="Hebrew">Hebrew</option>
+                                    <option value="Swahili">Swahili</option>
+                                    <option value="Amharic">Amharic</option>
+                                </optgroup>
                             </select>
                             <span className="absolute right-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-text-muted pointer-events-none">expand_more</span>
                         </div>

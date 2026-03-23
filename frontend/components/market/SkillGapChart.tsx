@@ -9,7 +9,7 @@ interface SkillGapChartProps {
 export default function SkillGapChart({ coverage }: SkillGapChartProps) {
     // Ensure coverage is between 0 and 100
     const percentage = Math.min(Math.max(coverage, 0), 100);
-    const circumference = 2 * Math.PI * 40; // r=40
+    const circumference = 2 * Math.PI * 60; // r=60
     const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
     return (
@@ -21,7 +21,7 @@ export default function SkillGapChart({ coverage }: SkillGapChartProps) {
                     strokeWidth="8"
                     stroke="currentColor"
                     fill="transparent"
-                    r="40"
+                    r="60"
                     cx="50%"
                     cy="50%"
                 />
@@ -34,7 +34,7 @@ export default function SkillGapChart({ coverage }: SkillGapChartProps) {
                     strokeLinecap="round"
                     stroke="currentColor"
                     fill="transparent"
-                    r="40"
+                    r="60"
                     cx="50%"
                     cy="50%"
                 />
