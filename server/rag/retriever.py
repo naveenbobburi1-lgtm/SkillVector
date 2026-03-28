@@ -92,6 +92,7 @@ async def retrieve_youtube_videos(query: str, max_results: int = 5, language: st
     """
     api_key = YOUTUBE_API_KEY
     if not api_key:
+        print("[WARNING] YOUTUBE_API_KEY is not set — skipping video fetch")
         return []
 
     # Strip "youtube" and language name for a cleaner topic-focused query
@@ -120,9 +121,15 @@ async def retrieve_youtube_videos(query: str, max_results: int = 5, language: st
         try:
             async with httpx.AsyncClient(timeout=10) as client:
                 response = await client.get(url, params=params)
+                if response.status_code == 403:
+                    body = response.json()
+                    reason = (body.get("error", {}).get("errors", [{}])[0].get("reason", "unknown"))
+                    print(f"[YouTube API] 403 Forbidden — reason: {reason} (likely quota exceeded)")
+                    return []
                 response.raise_for_status()
                 return response.json().get("items", [])
-        except Exception:
+        except Exception as e:
+            print(f"[YouTube API] Error fetching {duration} videos for '{q_clean[:50]}': {e}")
             return []
 
     # Fetch medium (4–20 min) and long (>20 min) concurrently
@@ -184,9 +191,15 @@ async def retrieve_youtube_playlists(query: str, max_results: int = 2, language:
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.get(url, params=params)
+            if response.status_code == 403:
+                body = response.json()
+                reason = (body.get("error", {}).get("errors", [{}])[0].get("reason", "unknown"))
+                print(f"[YouTube API] Playlist 403 — reason: {reason}")
+                return []
             response.raise_for_status()
             data = response.json()
-    except Exception:
+    except Exception as e:
+        print(f"[YouTube API] Playlist error for '{q_clean[:50]}': {e}")
         return []
 
     results = []
@@ -260,6 +273,7 @@ async def retrieve_articles(query: str, max_results: int = 3) -> list[dict]:
     Returns list of {type, title, platform, link}.
     """
     if not TAVILY_API_KEY:
+        print("[WARNING] TAVILY_API_KEY is not set — skipping article fetch")
         return []
 
     payload = {

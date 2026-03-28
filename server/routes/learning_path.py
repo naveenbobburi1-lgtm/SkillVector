@@ -267,61 +267,85 @@ CRITICAL CONTENT REQUIREMENTS:
     )
     print(f"[generate-path] Stage 2 (query generation): {time.time() - t_stage2:.3f}s")
 
-    # ==================================================
-    # STAGE 3: Fetch resources per phase (fully parallel)
-    # Tavily: unlimited concurrency (handles it fine)
-    # YouTube: semaphore-limited to 5 concurrent calls
-    # Both use in-memory cache for repeat queries
-    # ==================================================
     t_stage3 = time.time()
     yt_semaphore = asyncio.Semaphore(5)
 
-    # In-memory resource cache: query_string → result list
-    # Shared across phases so identical queries don't re-fetch
-    if not hasattr(generate_learning_path, "_resource_cache"):
-        generate_learning_path._resource_cache = {}
-    rcache = generate_learning_path._resource_cache
+    # DB-backed resource cache — batch approach uses exactly 2 DB sessions
+    # (one for batch lookup, one for batch store) instead of one per query.
+    from services.resource_cache_service import (
+        _build_cache_key,
+        batch_get_cached_resources,
+        batch_store_cached_resources,
+    )
 
-    async def _cached_articles(q: str) -> list[dict]:
-        key = f"tavily:{q}"
-        if key in rcache:
-            return rcache[key]
-        result = await retrieve_articles(q, max_results=2)
-        rcache[key] = result
-        return result
-
-    async def _cached_videos(q: str, lang: str) -> list[dict]:
-        key = f"yt:{q}:{lang}"
-        if key in rcache:
-            return rcache[key]
-        async with yt_semaphore:
-            result = await retrieve_videos(q, language=lang, max_results=2)
-        rcache[key] = result
-        return result
-
-    # Build ALL tasks across ALL phases at once
-    task_map: list[tuple[int, str, asyncio.Task]] = []  # (phase_idx, type, task)
-
+    # 3a. Collect ALL (source_type, query, language) tuples across all phases
+    query_items: list[tuple[int, str, str, str, str]] = []
+    #                      phase_idx, task_type, source_type, query, language
     for phase_idx in range(len(phases)):
         queries = phase_queries.get(phase_idx, {})
         for wq in queries.get("web_queries", []):
-            task_map.append((phase_idx, "web", asyncio.ensure_future(_cached_articles(wq))))
+            query_items.append((phase_idx, "web", "tavily", wq, "english"))
         for yq in queries.get("youtube_queries", []):
-            task_map.append((phase_idx, "yt", asyncio.ensure_future(_cached_videos(yq, instruction_language))))
+            query_items.append((phase_idx, "yt", "youtube", yq, instruction_language))
 
-    # Wait for ALL tasks across ALL phases
-    if task_map:
-        await asyncio.gather(*[t for _, _, t in task_map], return_exceptions=True)
+    # 3b. ONE DB lookup for all cache keys
+    cache_lookup_items = [(st, q, lang) for _, _, st, q, lang in query_items]
+    cached_results = await asyncio.to_thread(
+        batch_get_cached_resources, cache_lookup_items
+    )
 
-    # Collect results per phase
+    # 3c. Dispatch live API calls ONLY for cache misses
+    async def _fetch_articles(q: str) -> list[dict]:
+        return await retrieve_articles(q, max_results=2)
+
+    async def _fetch_videos(q: str, lang: str) -> list[dict]:
+        async with yt_semaphore:
+            return await retrieve_videos(q, language=lang, max_results=2)
+
+    # (phase_idx, task_type, source_type, query, language, asyncio.Task | cached_list)
+    task_map: list[tuple[int, str, str, str, str, object]] = []
+
+    for phase_idx, task_type, source_type, query, language in query_items:
+        cache_key = _build_cache_key(source_type, query, language)
+        hit = cached_results.get(cache_key)
+        if hit is not None:
+            # Cache hit — no API call needed
+            task_map.append((phase_idx, task_type, source_type, query, language, hit))
+        else:
+            # Cache miss — dispatch live fetch
+            if task_type == "web":
+                future = asyncio.ensure_future(_fetch_articles(query))
+            else:
+                future = asyncio.ensure_future(_fetch_videos(query, language))
+            task_map.append((phase_idx, task_type, source_type, query, language, future))
+
+    # Wait for live fetches only (cached entries are already resolved)
+    live_tasks = [entry[5] for entry in task_map if asyncio.isfuture(entry[5])]
+    if live_tasks:
+        await asyncio.gather(*live_tasks, return_exceptions=True)
+
+    # 3d. Collect results per phase + gather items to store
     all_phase_resources: list[list[dict]] = [[] for _ in phases]
-    for phase_idx, task_type, task in task_map:
+    to_store: list[tuple[str, str, str, list[dict]]] = []
+
+    for phase_idx, task_type, source_type, query, language, result_or_future in task_map:
         try:
-            result = task.result()
+            if asyncio.isfuture(result_or_future):
+                result = result_or_future.result()
+                # Schedule for batch DB store (only fresh fetches)
+                if result:
+                    to_store.append((source_type, query, language, result))
+            else:
+                result = result_or_future  # already a list from cache
+
             if result:
                 all_phase_resources[phase_idx].extend(result)
         except Exception as e:
             print(f"[Stage3] Phase {phase_idx} {task_type} error: {e}")
+
+    # 3e. ONE DB store for all fresh results
+    if to_store:
+        await asyncio.to_thread(batch_store_cached_resources, to_store)
 
     for pi in range(len(phases)):
         resources = all_phase_resources[pi]

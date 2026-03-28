@@ -3,6 +3,7 @@
 ONET_CACHE = {}
 
 MARKET_INSIGHTS_TTL_HOURS = 24  # Cache market insights for 24 hours
+RESOURCE_CACHE_TTL_DAYS = 30    # Cache YouTube/Tavily resources for 30 days
 
 # RAG pipeline limits
 RAG_MAX_SOURCES = 40

@@ -7,15 +7,98 @@ per phase:
   - youtube_queries:  for YouTube API (videos in English + user's language)
 
 Single LLM call for all phases. Every skill gets at least one query.
+
+CROSS-USER CACHING: Queries are cached by role + skills + language using the
+QueryPlanCache DB table. If another user targets the same role with the same
+skills, the cached queries are reused — skipping the LLM call entirely AND
+ensuring ResourceCache hits for the downstream YouTube/Tavily results.
 """
 
 import os
 import json
+import hashlib
+from datetime import datetime, timedelta, timezone
 from groq import Groq
 from config import LLM_TEMPERATURE
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# How long to keep cached phase queries (same as ResourceCache)
+PHASE_QUERY_TTL_DAYS = 30
+
+
+def _build_phase_queries_cache_key(
+    phases: list[dict], language: str, role: str
+) -> str:
+    """Build a cache key from role + ALL skills across phases + language.
+
+    This means: same role + same skills (regardless of phase structure) +
+    same language = same cache key = reused queries = ResourceCache hits.
+    """
+    all_skills = sorted(set(
+        sk.lower().strip()
+        for p in phases
+        for sk in p.get("skills", [])
+    ))
+    payload = f"{role.lower().strip()}|{'|'.join(all_skills)}|{language.lower().strip()}"
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _get_cached_phase_queries(cache_key: str) -> dict[int, dict] | None:
+    """Check QueryPlanCache for previously generated phase queries."""
+    try:
+        from db.database import SessionLocal
+        from db.models import QueryPlanCache
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=PHASE_QUERY_TTL_DAYS)
+        db = SessionLocal()
+        try:
+            cached = (
+                db.query(QueryPlanCache)
+                .filter(
+                    QueryPlanCache.cache_key == cache_key,
+                    QueryPlanCache.created_at >= cutoff,
+                )
+                .first()
+            )
+            if cached:
+                raw = json.loads(cached.queries)
+                # Convert string keys back to int keys
+                return {int(k): v for k, v in raw.items()}
+            return None
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"[phase_query_gen] cache lookup error: {e}")
+        return None
+
+
+def _store_cached_phase_queries(
+    cache_key: str, result: dict[int, dict]
+) -> None:
+    """Store generated phase queries in QueryPlanCache for cross-user reuse."""
+    try:
+        from db.database import SessionLocal
+        from db.models import QueryPlanCache
+
+        db = SessionLocal()
+        try:
+            db.query(QueryPlanCache).filter(
+                QueryPlanCache.cache_key == cache_key
+            ).delete()
+            db.add(QueryPlanCache(
+                cache_key=cache_key,
+                queries=json.dumps(result),
+            ))
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            print(f"[phase_query_gen] cache store error: {e}")
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"[phase_query_gen] cache store error: {e}")
 
 
 def _fallback_queries(phase: dict, language: str, role: str) -> dict:
@@ -52,12 +135,38 @@ def generate_phase_queries(
 ) -> dict[int, dict]:
     """Generate search queries for each phase — two arrays per phase.
 
+    CACHING: Results are cached by role + skills + language in QueryPlanCache.
+    If another user has the same role/skills/language, the cached queries are
+    returned instantly — no LLM call, and downstream ResourceCache also hits.
+
     Returns:
         {phase_index: {"web_queries": [...], "youtube_queries": [...]}}
     """
     if not phases:
         return {}
 
+    # ── Check cache first ────────────────────────────────────────────────
+    cache_key = _build_phase_queries_cache_key(phases, language, role)
+    cached = _get_cached_phase_queries(cache_key)
+    if cached is not None:
+        # Adapt cached queries to current number of phases
+        # (different users may have different phase counts even with same skills)
+        result: dict[int, dict] = {}
+        for i in range(len(phases)):
+            if i in cached:
+                result[i] = cached[i]
+            else:
+                result[i] = _fallback_queries(phases[i], language, role)
+
+        total_wq = sum(len(v.get("web_queries", [])) for v in result.values())
+        total_yq = sum(len(v.get("youtube_queries", [])) for v in result.values())
+        print(
+            f"[phase_query_gen] CACHE HIT for '{role}' "
+            f"({len(result)} phases, {total_wq} web + {total_yq} youtube queries)"
+        )
+        return result
+
+    # ── LLM generation ───────────────────────────────────────────────────
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     lang_lower = language.lower().strip()
     is_non_english = lang_lower not in ("english", "en")
@@ -154,11 +263,15 @@ Output format:
                     if len(yq) < 2:
                         result[i]["youtube_queries"] = fb["youtube_queries"]
 
-        print(f"[phase_query_gen] Generated queries for {len(result)} phases")
+        print(f"[phase_query_gen] LLM MISS for '{role}' — generated queries for {len(result)} phases")
         for i in result:
             wc = len(result[i]["web_queries"])
             yc = len(result[i]["youtube_queries"])
             print(f"  Phase {i}: {wc} web + {yc} youtube queries")
+
+        # ── Store to cache for cross-user reuse ──────────────────────
+        _store_cached_phase_queries(cache_key, result)
+
         return result
 
     except Exception as e:

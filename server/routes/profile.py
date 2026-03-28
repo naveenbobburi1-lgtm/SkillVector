@@ -219,21 +219,57 @@ async def create_user_details(
             "timeline": details.timeline
         }
 
+        # Fields that affect learning path generation — only invalidate if these change
+        PATH_FIELDS = (
+            "desired_role", "skills", "preferred_industries",
+            "language", "learning_pace", "hours_per_week", "timeline",
+        )
+        # Fields that affect market insights
+        MARKET_FIELDS = ("desired_role", "skills")
+
+        path_changed = False
+        market_changed = False
+
         if existing_profile:
+            # Compare path-affecting fields before and after
+            for field in PATH_FIELDS:
+                old_val = getattr(existing_profile, field, None)
+                new_val = profile_data.get(field)
+                if old_val != new_val:
+                    path_changed = True
+                    if field in MARKET_FIELDS:
+                        market_changed = True
+                    break
+            # If path fields didn't trigger market check, also check market-only fields
+            if not market_changed:
+                for field in MARKET_FIELDS:
+                    old_val = getattr(existing_profile, field, None)
+                    new_val = profile_data.get(field)
+                    if old_val != new_val:
+                        market_changed = True
+                        break
+
             # Update existing profile
             for key, value in profile_data.items():
                 setattr(existing_profile, key, value)
         else:
-            # Create new profile
+            # Create new profile — always generate fresh path
             new_profile = UserProfile(user_id=current_user.id, **profile_data)
             db.add(new_profile)
+            path_changed = True
+            market_changed = True
 
         db.commit()
 
-        # Invalidate learning path
-        invalidate_learning_path(current_user.id, db)
-        # Invalidate market insights cache (role/skills may have changed)
-        invalidate_market_insights_cache(current_user.id, db)
+        # Only invalidate if path-affecting fields actually changed
+        if path_changed:
+            invalidate_learning_path(current_user.id, db)
+            print(f"[userdetails] Learning path invalidated for user {current_user.id}")
+        else:
+            print(f"[userdetails] No path-affecting changes for user {current_user.id} — keeping cached path")
+
+        if market_changed:
+            invalidate_market_insights_cache(current_user.id, db)
 
         return {"message": "User profile saved successfully"}
 
