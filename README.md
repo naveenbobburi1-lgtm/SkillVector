@@ -204,7 +204,7 @@ For roles not in O\*NET, the system falls back to LLM-based skill extraction.
 | **State** | Zustand | 5.x |
 | **Backend** | FastAPI, Python | 0.134, 3.13 |
 | **ORM** | SQLAlchemy, Pydantic v2 | 2.0, 2.12 |
-| **Database** | PostgreSQL + pgvector(Supabase) | 16 |
+| **Database** | PostgreSQL + pgvector (Supabase) | 16 |
 | **Vector Search** | pgvector with HNSW indexes | 0.3.6 |
 | **Embeddings** | Mistral Embed (1024-dim) | 1.12 |
 | **LLM** | Groq — Llama 3.3 70B, Groq Compound | 1.0 |
